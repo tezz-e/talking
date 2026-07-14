@@ -1,0 +1,23 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables (sensitive!)
+.env
+.env.*
+
+# Local databases and exports
+data/db/
+data/exports/
+*.db
+*.sqlite3
+
+# Log files
+*.log

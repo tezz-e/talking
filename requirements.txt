@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+google-genai
+chromadb==0.4.24
+onnxruntime==1.16.3
+posthog<4
+ftfy
+pydantic
+python-multipart
+aiofiles
