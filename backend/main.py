@@ -61,10 +61,9 @@ def delete_contact(contact_id: str):
 
 @app.get("/api/history/{contact_id}")
 def get_history(contact_id: str, limit: int = 50):
-    # db.get_messages() already returns oldest→newest, which is what
-    # the UI wants (it renders top-to-bottom and auto-scrolls to bottom).
-    # Do NOT reverse here — that was flipping the order to newest-first.
-    return db.get_messages(contact_id, limit=limit)
+    messages = db.get_messages(contact_id, limit=limit)
+    # Reverse so oldest is first for the UI
+    return messages[::-1]
 
 # ─── Messaging ───
 
@@ -83,51 +82,30 @@ def handle_message(req: GenerateRequest):
         metadata={"mood": req.mood.value if req.mood else "default"}
     ))
 
-    if not req.feedback:
-        direct_reply = context_assembler.get_learned_callback_reply(
-            req.contact_id,
-            req.incoming_message,
+    direct_reply = context_assembler.get_learned_callback_reply(
+        req.contact_id,
+        req.incoming_message,
+    )
+    if direct_reply:
+        return GenerateResponse(
+            draft=direct_reply,
+            confidence=0.95,
+            retrieved_memories=[]
         )
-        if direct_reply:
-            return GenerateResponse(
-                draft=direct_reply,
-                confidence=0.95,
-                retrieved_memories=[],
-                model_provider="system"
-            )
-
-        lyric_reply = context_assembler.get_verified_lyric_reply(
-            req.contact_id,
-            req.incoming_message,
-        )
-        if lyric_reply:
-            return GenerateResponse(
-                draft=lyric_reply,
-                confidence=0.93,
-                retrieved_memories=[],
-                model_provider="system"
-            )
     
     # Assemble context and generate
-    sys_prompt, user_msg, retrieved, history_list = context_assembler.assemble(
+    sys_prompt, user_msg, retrieved = context_assembler.assemble(
         contact_id=req.contact_id,
         incoming_message=req.incoming_message,
-        mood=req.mood.value if req.mood else "default",
-        feedback=req.feedback
+        mood=req.mood.value if req.mood else "default"
     )
     
-    draft = llm.generate_chat(
-        system_instruction=sys_prompt,
-        history=history_list,
-        new_message=user_msg,
-        provider_mode=req.provider_mode
-    )
+    draft = llm.generate(sys_prompt, user_msg)
     
     return GenerateResponse(
         draft=draft,
         confidence=0.85, # hardcoded for now, could implement confidence scoring later
-        retrieved_memories=retrieved,
-        model_provider=llm.last_provider_used
+        retrieved_memories=retrieved
     )
 
 @app.post("/api/regenerate", response_model=GenerateResponse)
@@ -136,52 +114,30 @@ def handle_regenerate(req: GenerateRequest):
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 
-    if not req.feedback:
-        direct_reply = context_assembler.get_learned_callback_reply(
-            req.contact_id,
-            req.incoming_message,
+    direct_reply = context_assembler.get_learned_callback_reply(
+        req.contact_id,
+        req.incoming_message,
+    )
+    if direct_reply:
+        return GenerateResponse(
+            draft=direct_reply,
+            confidence=0.95,
+            retrieved_memories=[]
         )
-        if direct_reply:
-            return GenerateResponse(
-                draft=direct_reply,
-                confidence=0.95,
-                retrieved_memories=[],
-                model_provider="system"
-            )
-
-        lyric_reply = context_assembler.get_verified_lyric_reply(
-            req.contact_id,
-            req.incoming_message,
-        )
-        if lyric_reply:
-            return GenerateResponse(
-                draft=lyric_reply,
-                confidence=0.93,
-                retrieved_memories=[],
-                model_provider="system"
-            )
     
-    sys_prompt, user_msg, retrieved, history_list = context_assembler.assemble(
+    sys_prompt, user_msg, retrieved = context_assembler.assemble(
         contact_id=req.contact_id,
         incoming_message=req.incoming_message,
-        mood=req.mood.value if req.mood else "default",
-        feedback=req.feedback
+        mood=req.mood.value if req.mood else "default"
     )
     
     # Slightly higher temperature for regeneration for variety
-    draft = llm.generate_chat(
-        system_instruction=sys_prompt,
-        history=history_list,
-        new_message=user_msg,
-        temperature=0.9,
-        provider_mode=req.provider_mode
-    )
+    draft = llm.generate(sys_prompt, user_msg, temperature=0.9)
     
     return GenerateResponse(
         draft=draft,
         confidence=0.85,
-        retrieved_memories=retrieved,
-        model_provider=llm.last_provider_used
+        retrieved_memories=retrieved
     )
 
 @app.post("/api/approve")
@@ -379,6 +335,8 @@ class SoulContent(BaseModel):
 def get_soul():
     path = DATA_DIR / "SOUL.md"
     if not path.exists():
+        path = DATA_DIR / "SOUL.template.md"
+    if not path.exists():
         return {"content": ""}
     with open(path, 'r', encoding='utf-8') as f:
         return {"content": f.read()}
@@ -396,14 +354,13 @@ def update_soul(payload: SoulContent):
 def get_style():
     path = DATA_DIR / "STYLE.md"
     if not path.exists():
+        path = DATA_DIR / "STYLE.template.md"
+    if not path.exists():
         return {"content": ""}
     with open(path, 'r', encoding='utf-8') as f:
         return {"content": f.read()}
 
-
-
 # ─── Static Files & Frontend ───
-
 
 frontend_dir = BASE_DIR / "frontend"
 app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")

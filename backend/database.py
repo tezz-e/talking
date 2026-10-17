@@ -257,22 +257,18 @@ class DatabaseManager:
         limit: int = 50,
         offset: int = 0,
     ) -> List[Message]:
-        """Get messages for a contact with pagination (returning the most recent messages, ordered oldest first)."""
+        """Get messages for a contact with pagination (oldest first)."""
         with self._connection() as conn:
             rows = conn.execute(
                 """
-                SELECT * FROM (
-                    SELECT * FROM messages
-                    WHERE contact_id = ?
-                    ORDER BY timestamp DESC
-                    LIMIT ? OFFSET ?
-                ) sub
+                SELECT * FROM messages
+                WHERE contact_id = ?
                 ORDER BY timestamp ASC
+                LIMIT ? OFFSET ?
                 """,
                 (contact_id, limit, offset),
             ).fetchall()
         return [self._row_to_message(r) for r in rows]
-
 
     def get_recent_messages(self, contact_id: str, n: int = 15) -> List[Message]:
         """Get the last N messages for a contact (returned oldest-first)."""

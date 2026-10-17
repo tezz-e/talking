@@ -20,8 +20,7 @@ const state = {
   isGenerating: false,
   isEditing: false,
   ingestSource: 'instagram',
-  lastIncomingMessage: null,
-  currentProviderMode: 'auto'
+  lastIncomingMessage: null
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -76,27 +75,24 @@ const api = {
   },
 
   // ── Messaging ──
-  sendMessage(contactId, message, mood, providerMode) {
+  sendMessage(contactId, message, mood) {
     return this._fetch('/api/message', {
       method: 'POST',
       body: JSON.stringify({
         contact_id: contactId,
         incoming_message: message,
-        mood: mood,
-        provider_mode: providerMode
+        mood: mood
       })
     });
   },
 
-  regenerate(contactId, message, mood, providerMode, feedback) {
+  regenerate(contactId, message, mood) {
     return this._fetch('/api/regenerate', {
       method: 'POST',
       body: JSON.stringify({
         contact_id: contactId,
         incoming_message: message,
-        mood: mood,
-        provider_mode: providerMode,
-        feedback: feedback
+        mood: mood
       })
     });
   },
@@ -164,14 +160,10 @@ const dom = {
   draftContent:     $('#draftContent'),
   draftActions:     $('#draftActions'),
   confidenceBadge:  $('#confidenceBadge'),
-  modelBadge:       $('#modelBadge'),
   editDraftBtn:     $('#editDraftBtn'),
   regenBtn:         $('#regenBtn'),
   approveBtn:       $('#approveBtn'),
   draftShortcutHint:$('#draftShortcutHint'),
-  feedbackContainer:$('#feedbackContainer'),
-  draftFeedbackInput:$('#draftFeedbackInput'),
-  sendFeedbackBtn:  $('#sendFeedbackBtn'),
 
   // Contact Profile
   contactName:      $('#contactName'),
@@ -184,7 +176,6 @@ const dom = {
 
   // Mood
   moodSelector:     $('#moodSelector'),
-  providerSelector: $('#providerSelector'),
 
   // AI stats
   aiStatusText:     $('#aiStatusText'),
@@ -356,9 +347,6 @@ function setLoading(isLoading) {
     dom.draftActions.classList.add('hidden');
     dom.confidenceBadge.classList.add('hidden');
     dom.draftShortcutHint.classList.add('hidden');
-    if (dom.feedbackContainer) {
-      dom.feedbackContainer.classList.add('hidden');
-    }
   }
 }
 
@@ -398,12 +386,11 @@ function renderMessages(messages) {
 
     const wasEdited = isOutgoing && msg.was_edited;
     const senderName = isOutgoing ? 'You' : (state.currentContact?.name || 'Them');
-    const editedLabel = wasEdited ? '<span class="edited-label">✎ edited</span> • ' : '';
 
     row.innerHTML = `
       <div class="message-sender">${senderName}</div>
-      <div class="message-bubble">${escapeHtml(msg.content || msg.text || '')}</div>
-      <div class="message-timestamp">${editedLabel}${relativeTime(msg.timestamp)}</div>
+      <div class="message-bubble${wasEdited ? ' was-edited' : ''}">${escapeHtml(msg.content || msg.text || '')}</div>
+      <div class="message-timestamp">${relativeTime(msg.timestamp)}</div>
     `;
     fragment.appendChild(row);
   });
@@ -430,12 +417,11 @@ function appendMessage(msg) {
 
   const wasEdited = isOutgoing && msg.was_edited;
   const senderName = isOutgoing ? 'You' : (state.currentContact?.name || 'Them');
-  const editedLabel = wasEdited ? '<span class="edited-label">✎ edited</span> • ' : '';
 
   row.innerHTML = `
     <div class="message-sender">${senderName}</div>
-    <div class="message-bubble">${escapeHtml(msg.content || msg.text || '')}</div>
-    <div class="message-timestamp">${editedLabel}${relativeTime(msg.timestamp)}</div>
+    <div class="message-bubble${wasEdited ? ' was-edited' : ''}">${escapeHtml(msg.content || msg.text || '')}</div>
+    <div class="message-timestamp">${relativeTime(msg.timestamp)}</div>
   `;
   dom.messageHistory.appendChild(row);
 
@@ -443,7 +429,6 @@ function appendMessage(msg) {
     dom.messageHistory.scrollTop = dom.messageHistory.scrollHeight;
   });
 }
-
 
 function escapeHtml(str) {
   const div = document.createElement('div');
@@ -476,9 +461,6 @@ function renderContacts(contacts) {
  * Render contact profile into the sidebar form.
  */
 function renderContactProfile(contact) {
-  const statusEl = $('#contactSaveStatus');
-  if (statusEl) statusEl.textContent = '';
-
   if (!contact) {
     dom.contactName.value = '';
     dom.contactStage.value = 'stranger';
@@ -486,9 +468,6 @@ function renderContactProfile(contact) {
     dom.contactInterests.value = '';
     dom.contactJokes.value = '';
     dom.contactNotes.value = '';
-    
-    dom.saveContactBtn.classList.remove('hidden');
-    dom.saveContactBtn.innerHTML = '＋ Create Contact';
     return;
   }
 
@@ -498,15 +477,12 @@ function renderContactProfile(contact) {
   dom.contactInterests.value = contact.their_interests ? contact.their_interests.join(', ') : '';
   dom.contactJokes.value = contact.inside_jokes ? contact.inside_jokes.join(', ') : '';
   dom.contactNotes.value = contact.notes || '';
-  
-  dom.saveContactBtn.classList.add('hidden');
 }
-
 
 /**
  * Show the AI draft in the draft panel.
  */
-function showDraft(draft, confidence, provider) {
+function showDraft(draft, confidence) {
   state.currentDraft = draft;
   state.currentDraftRaw = draft;
   state.currentConfidence = confidence;
@@ -527,38 +503,9 @@ function showDraft(draft, confidence, provider) {
   dom.confidenceBadge.textContent = badgeText;
   dom.confidenceBadge.classList.remove('hidden');
 
-  // Model badge
-  if (dom.modelBadge) {
-    if (provider) {
-      let modelClass = 'gemini';
-      let modelText = provider.charAt(0).toUpperCase() + provider.slice(1);
-      
-      if (provider.toLowerCase() === 'groq') {
-        modelClass = 'groq';
-      } else if (provider.toLowerCase() === 'system') {
-        modelClass = 'system';
-        modelText = 'Local System';
-      }
-      
-      dom.modelBadge.className = `model-badge ${modelClass}`;
-      dom.modelBadge.textContent = modelText;
-      dom.modelBadge.classList.remove('hidden');
-    } else {
-      dom.modelBadge.classList.add('hidden');
-    }
-  }
-
   // Show actions
   dom.draftActions.classList.remove('hidden');
   dom.draftShortcutHint.classList.remove('hidden');
-
-  // Show and clear feedback input
-  if (dom.feedbackContainer) {
-    dom.feedbackContainer.classList.remove('hidden');
-  }
-  if (dom.draftFeedbackInput) {
-    dom.draftFeedbackInput.value = '';
-  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -597,14 +544,13 @@ async function handleSend() {
     const result = await api.sendMessage(
       state.currentContact.id,
       text,
-      state.currentMood,
-      state.currentProviderMode
+      state.currentMood
     );
 
     setLoading(false);
 
     if (result && result.draft) {
-      showDraft(result.draft, result.confidence ?? 0.85, result.model_provider);
+      showDraft(result.draft, result.confidence ?? 0.85);
 
       // Update memory count if returned
       if (result.retrieved_memories !== undefined) {
@@ -629,10 +575,8 @@ async function handleSend() {
 /**
  * Handle regenerating a draft.
  */
-async function handleRegenerate(feedback = null) {
+async function handleRegenerate() {
   if (!state.currentContact || !state.lastIncomingMessage || state.isGenerating) return;
-
-  const feedbackText = (typeof feedback === 'string') ? feedback : null;
 
   setLoading(true);
 
@@ -640,16 +584,14 @@ async function handleRegenerate(feedback = null) {
     const result = await api.regenerate(
       state.currentContact.id,
       state.lastIncomingMessage,
-      state.currentMood,
-      state.currentProviderMode,
-      feedbackText
+      state.currentMood
     );
 
     setLoading(false);
 
     if (result && result.draft) {
-      showDraft(result.draft, result.confidence ?? 0.85, result.model_provider);
-      showToast(feedbackText ? 'Draft updated with feedback' : 'Draft regenerated', 'info');
+      showDraft(result.draft, result.confidence ?? 0.85);
+      showToast('Draft regenerated', 'info');
     }
   } catch (err) {
     setLoading(false);
@@ -747,12 +689,6 @@ async function handleApprove() {
  * Handle saving the contact profile.
  */
 async function handleSaveContact() {
-  const statusEl = $('#contactSaveStatus');
-  if (statusEl) {
-    statusEl.className = 'save-status saving';
-    statusEl.textContent = 'Saving...';
-  }
-
   const interestsVal = dom.contactInterests.value.trim();
   const jokesVal = dom.contactJokes.value.trim();
 
@@ -768,10 +704,6 @@ async function handleSaveContact() {
   if (!contactData.name) {
     showToast('Please enter a contact name.', 'warning');
     dom.contactName.focus();
-    if (statusEl) {
-      statusEl.className = 'save-status error';
-      statusEl.textContent = 'Name required';
-    }
     return;
   }
 
@@ -781,7 +713,6 @@ async function handleSaveContact() {
       const updated = await api.updateContact(state.currentContact.id, contactData);
       state.currentContact = { ...state.currentContact, ...contactData, ...updated };
       showToast('Contact updated!', 'success');
-      dom.saveContactBtn.classList.add('hidden');
     } else {
       // Create new
       const created = await api.createContact(contactData);
@@ -791,79 +722,12 @@ async function handleSaveContact() {
       // Select the new contact
       dom.contactSelector.value = created.id;
       showToast('Contact created!', 'success');
-      dom.saveContactBtn.classList.add('hidden');
-    }
-
-    // Sync dropdown text if name changed
-    const contactIndex = state.contacts.findIndex(c => c.id === state.currentContact.id);
-    if (contactIndex !== -1) {
-      state.contacts[contactIndex] = state.currentContact;
-      const option = dom.contactSelector.querySelector(`option[value="${state.currentContact.id}"]`);
-      if (option) {
-        option.textContent = state.currentContact.name;
-      }
-    }
-
-    if (statusEl) {
-      statusEl.className = 'save-status saved';
-      statusEl.textContent = 'Saved';
-      setTimeout(() => {
-        if (statusEl.textContent === 'Saved') {
-          statusEl.textContent = '';
-        }
-      }, 2000);
     }
   } catch (err) {
     console.error('Save contact error:', err);
     showToast(`Error saving contact: ${err.message}`, 'error');
-    if (statusEl) {
-      statusEl.className = 'save-status error';
-      statusEl.textContent = 'Error';
-    }
   }
 }
-
-/**
- * Checks if the contact form has unsaved modifications and shows/hides the save button.
- */
-function checkContactFormDirty() {
-  if (!state.currentContact) {
-    // If no contact selected (New Contact mode), always show it as Create Contact
-    dom.saveContactBtn.classList.remove('hidden');
-    dom.saveContactBtn.innerHTML = '＋ Create Contact';
-    return;
-  }
-
-  const interestsVal = dom.contactInterests.value.trim();
-  const jokesVal = dom.contactJokes.value.trim();
-
-  const currentForm = {
-    name: dom.contactName.value.trim(),
-    relationship_stage: dom.contactStage.value,
-    how_you_know: dom.contactHow.value.trim(),
-    their_interests: interestsVal ? interestsVal.split(',').map(s => s.trim()) : [],
-    inside_jokes: jokesVal ? jokesVal.split(',').map(s => s.trim()) : [],
-    notes: dom.contactNotes.value.trim()
-  };
-
-  const original = state.currentContact;
-  const isDirty = 
-    currentForm.name !== (original.name || '') ||
-    currentForm.relationship_stage !== (original.relationship_stage || 'stranger') ||
-    currentForm.how_you_know !== (original.how_you_know || '') ||
-    JSON.stringify(currentForm.their_interests) !== JSON.stringify(original.their_interests || []) ||
-    JSON.stringify(currentForm.inside_jokes) !== JSON.stringify(original.inside_jokes || []) ||
-    currentForm.notes !== (original.notes || '');
-
-  if (isDirty) {
-    dom.saveContactBtn.classList.remove('hidden');
-    dom.saveContactBtn.innerHTML = '💾 Save Changes';
-  } else {
-    dom.saveContactBtn.classList.add('hidden');
-  }
-}
-
-
 
 /**
  * Handle switching contacts.
@@ -918,28 +782,6 @@ function handleMoodSelect(e) {
   $$('.mood-chip').forEach((c) => c.classList.remove('active'));
   chip.classList.add('active');
   state.currentMood = chip.dataset.mood;
-}
-
-/**
- * Handle provider chip selection.
- */
-function handleProviderSelect(e) {
-  const chip = e.target.closest('.provider-chip');
-  if (!chip) return;
-
-  $$('.provider-chip').forEach((c) => c.classList.remove('active'));
-  chip.classList.add('active');
-  state.currentProviderMode = chip.dataset.providerMode || 'auto';
-}
-
-/**
- * Handle sending feedback to adjust the draft.
- */
-function handleSendFeedback() {
-  if (!dom.draftFeedbackInput) return;
-  const text = dom.draftFeedbackInput.value.trim();
-  if (!text) return;
-  handleRegenerate(text);
 }
 
 /**
@@ -1134,42 +976,8 @@ function bindEvents() {
   dom.contactSelector.addEventListener('change', handleContactChange);
   dom.saveContactBtn.addEventListener('click', handleSaveContact);
 
-  // Detect edits to toggle the "Save Changes" button
-  [
-    dom.contactName,
-    dom.contactHow,
-    dom.contactInterests,
-    dom.contactJokes,
-    dom.contactNotes
-  ].forEach((el) => {
-    if (el) el.addEventListener('input', checkContactFormDirty);
-  });
-  if (dom.contactStage) {
-    dom.contactStage.addEventListener('change', checkContactFormDirty);
-  }
-
-
-
   // Mood
   dom.moodSelector.addEventListener('click', handleMoodSelect);
-
-  // Provider Mode
-  if (dom.providerSelector) {
-    dom.providerSelector.addEventListener('click', handleProviderSelect);
-  }
-
-  // Feedback input
-  if (dom.sendFeedbackBtn) {
-    dom.sendFeedbackBtn.addEventListener('click', handleSendFeedback);
-  }
-  if (dom.draftFeedbackInput) {
-    dom.draftFeedbackInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleSendFeedback();
-      }
-    });
-  }
 
   // Data management
   dom.ingestBtn.addEventListener('click', handleOpenIngest);

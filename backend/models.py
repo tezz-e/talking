@@ -5,9 +5,9 @@ Defines all request/response schemas and domain models for the
 AI texting autopilot backend.
 """
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 import uuid
 
@@ -54,17 +54,6 @@ class Message(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
-    @field_serializer("timestamp")
-    def _serialize_timestamp(self, dt: datetime, _info):
-        # Timestamps are stored as naive UTC (datetime.utcnow()). Without an
-        # explicit offset, the frontend's `new Date(dateStr)` parses the
-        # string as LOCAL time instead of UTC, which for UTC+5:30 makes
-        # messages look ~5.5 hours in the future (so diffs read as "hours
-        # ago" for messages sent seconds ago). Stamp it as UTC explicitly.
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.isoformat()
-
 
 class Contact(BaseModel):
     """A person the user communicates with."""
@@ -108,10 +97,6 @@ class GenerateRequest(BaseModel):
     contact_id: str = Field(..., description="Which contact this is for")
     incoming_message: str = Field(..., description="The message they sent you")
     mood: Optional[Mood] = Field(default=Mood.DEFAULT, description="Desired tone")
-    provider_mode: Optional[str] = Field(default="auto", description="Desired API provider mode ('auto', 'gemini', 'groq')")
-    feedback: Optional[str] = Field(default=None, description="Correction / instructions for regeneration")
-
-
 
 
 class GenerateResponse(BaseModel):
@@ -119,8 +104,6 @@ class GenerateResponse(BaseModel):
     draft: str = Field(..., description="The generated reply text")
     confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Model confidence")
     retrieved_memories: List[str] = Field(default_factory=list, description="Memories used for context")
-    model_provider: Optional[str] = Field(default="gemini", description="Which model provider was used ('gemini', 'groq', or 'system')")
-
 
 
 class ApproveRequest(BaseModel):

@@ -1,0 +1,699 @@
+"""
+Instagram DM Watcher
+====================
+Monitors a single Instagram conversation for new incoming messages.
+Uses a persistent browser session (you log in once, session is saved).
+Posts new messages to the Talking backend, which generates AI replies.
+"""
+
+import asyncio
+import json
+import logging
+import random
+from pathlib import Path
+from typing import Optional
+
+import httpx
+
+logger = logging.getLogger("ig_watcher")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [IG] %(message)s")
+
+# ─── Config ──────────────────────────────────────────────────────────────────
+SESSION_DIR = Path(__file__).parent.parent / "data" / "ig_session"
+BACKEND_URL = "http://localhost:8000"
+POLL_MIN = 6   # seconds
+POLL_MAX = 14  # seconds (randomized to avoid detection)
+IG_BASE = "https://www.instagram.com"
+
+# ─── Shared state (read by backend API endpoints) ─────────────────────────────
+_state = {
+    "running": False,
+    "contact_id": None,
+    "ig_username": None,
+    "last_message": None,
+    "last_sent": None,
+    "pending_reply": None,
+    "error": None,
+    "status_text": "Idle",
+    "history_synced_at": 0,
+}
+
+# Global reference to the playwright page for sending messages
+_page_ref = None
+_loop_ref = None
+
+
+def get_state() -> dict:
+    return dict(_state)
+
+
+def stop_watcher():
+    _state["running"] = False
+    _state["status_text"] = "Stopping..."
+
+
+# ─── Login / Session ──────────────────────────────────────────────────────────
+async def ensure_logged_in(page, context) -> bool:
+    cookie_file = SESSION_DIR / "cookies.json"
+    SESSION_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Restore saved cookies if they exist
+    if cookie_file.exists():
+        try:
+            cookies = json.loads(cookie_file.read_text())
+            await context.add_cookies(cookies)
+            logger.info("Restored saved Instagram session cookies.")
+        except Exception:
+            pass
+
+    # Navigate to Instagram home first (less suspicious than going straight to DMs)
+    await page.goto(IG_BASE, wait_until="domcontentloaded", timeout=30000)
+    await asyncio.sleep(3)
+
+    # Check if actually logged in by looking for UI elements, not just URL
+    def _is_login_page():
+        url = page.url
+        return "login" in url or "accounts/login" in url
+
+    async def _is_logged_in():
+        """Returns True if key logged-in UI elements are present."""
+        try:
+            # Look for the nav bar elements that only appear when logged in
+            logged_in_selectors = [
+                'a[href="/direct/inbox/"]',     # DM icon in nav
+                'svg[aria-label="Home"]',         # Home icon
+                '[aria-label="New post"]',
+                'a[href*="/direct/"]',
+            ]
+            for sel in logged_in_selectors:
+                el = await page.query_selector(sel)
+                if el:
+                    return True
+            return False
+        except Exception:
+            return False
+
+    # If already logged in, save fresh cookies and return
+    if await _is_logged_in():
+        logger.info("Already logged in.")
+        cookies = await context.cookies()
+        cookie_file.write_text(json.dumps(cookies))
+        _state["status_text"] = "Logged in ✓"
+        return True
+
+    # Not logged in — go to login page and wait for user
+    if not _is_login_page():
+        await page.goto(f"{IG_BASE}/accounts/login/", wait_until="domcontentloaded", timeout=20000)
+        await asyncio.sleep(2)
+
+    _state["status_text"] = "⏳ Waiting for login — log in to Instagram in the browser"
+    logger.info("=" * 60)
+    logger.info("WAITING FOR MANUAL LOGIN")
+    logger.info("Please log into Instagram in the browser window.")
+    logger.info("The watcher will continue automatically once you're in.")
+    logger.info("=" * 60)
+
+    # Wait up to 3 minutes, checking every second
+    for i in range(180):
+        await asyncio.sleep(1)
+        if await _is_logged_in():
+            logger.info("Login detected! Continuing...")
+            break
+    else:
+        _state["error"] = "Login timeout — took more than 3 minutes."
+        _state["status_text"] = "Error: login timeout"
+        return False
+
+    # Save session for next time
+    cookies = await context.cookies()
+    cookie_file.write_text(json.dumps(cookies))
+    logger.info("Session saved for future use.")
+    _state["status_text"] = "Logged in ✓"
+    return True
+
+# ─── Navigation ───────────────────────────────────────────────────────────────
+async def go_to_conversation(page, target: str) -> bool:
+    """
+    Navigate directly to a DM thread.
+    target should be the full thread URL or just the numeric thread ID.
+    """
+    try:
+        logger.info(f"go_to_conversation called with target='{target}'")
+
+        # Build the thread URL
+        if target.startswith("https://www.instagram.com/direct/t/"):
+            thread_url = target
+        elif target.startswith("https://"):
+            thread_url = target  # some other IG URL, try anyway
+        elif target.isdigit():
+            thread_url = f"{IG_BASE}/direct/t/{target}/"
+        elif "direct/t/" in target:
+            # partial path like "direct/t/123456789/"
+            thread_url = f"{IG_BASE}/{target.lstrip('/')}"
+        else:
+            # Treat as @username — build direct inbox URL by going to profile
+            # then navigating to the full thread page (NOT clicking Message popup)
+            logger.warning(f"No thread URL given. Got username '{target}'. "
+                           f"For best results paste the full thread URL.")
+            # Still try: go to inbox and look for the thread
+            await page.goto(f"{IG_BASE}/direct/inbox/", wait_until="domcontentloaded", timeout=20000)
+            await asyncio.sleep(2)
+            # Find thread link by name in sidebar
+            link = page.locator(f'a[href*="/direct/t/"]').first
+            if await link.count() > 0:
+                href = await link.get_attribute("href")
+                thread_url = f"{IG_BASE}{href}"
+                logger.info(f"Found thread link in inbox: {thread_url}")
+            else:
+                _state["error"] = "Please paste the full thread URL (instagram.com/direct/t/...)"
+                _state["status_text"] = "Error: need thread URL"
+                return False
+
+        logger.info(f"Navigating to: {thread_url}")
+        _state["status_text"] = "Opening DM thread..."
+        await page.goto(thread_url, wait_until="domcontentloaded", timeout=25000)
+        await asyncio.sleep(random.uniform(2, 3))
+
+        # Verify we landed on the right page
+        current = page.url
+        if "direct/t/" in current:
+            logger.info(f"✅ On DM thread: {current}")
+            _state["status_text"] = "Watching conversation"
+            return True
+        else:
+            logger.warning(f"Expected DM thread but landed on: {current}")
+            # Could be a redirect — still try
+            _state["status_text"] = "Watching conversation"
+            return True
+
+    except Exception as e:
+        _state["error"] = f"Navigation error: {e}"
+        _state["status_text"] = "Error: navigation failed"
+        logger.error(_state["error"])
+        return False
+
+
+
+# ─── Message Reading ──────────────────────────────────────────────────────────
+async def get_latest_incoming(page) -> list[str]:
+    """
+    Returns the block of recent incoming messages on screen.
+    Uses JS evaluation to inspect all message rows and classify by alignment.
+    """
+    try:
+        result = await page.evaluate("""
+            () => {
+                const allDivs = Array.from(document.querySelectorAll('div[dir="auto"]'));
+                let currentBlock = [];
+
+                for (const el of allDivs) {
+                    const text = el.innerText ? el.innerText.trim() : '';
+                    if (!text || text.length < 2 || text.length > 2000) continue;
+                    const childDivs = el.querySelectorAll('div[dir="auto"]');
+                    if (childDivs.length > 0) continue;
+
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width < 10 || rect.height < 10) continue;
+                    if (rect.top < 0 || rect.bottom > window.innerHeight + 200) continue;
+
+                    let parent = el.parentElement;
+                    let rowRect = null;
+                    while (parent) {
+                        const pRect = parent.getBoundingClientRect();
+                        if (pRect.width >= 250 && pRect.width > rect.width * 1.15) {
+                            rowRect = pRect;
+                            break;
+                        }
+                        parent = parent.parentElement;
+                    }
+                    if (!rowRect) rowRect = { left: 0, right: window.innerWidth };
+
+                    const leftDist = Math.abs(rect.left - rowRect.left);
+                    const rightDist = Math.abs(rowRect.right - rect.right);
+
+                    if (leftDist < rightDist * 0.85) {
+                        currentBlock.push(text);
+                    } else if (rightDist < leftDist * 0.85) {
+                        currentBlock = [];
+                    }
+                }
+                return currentBlock;
+            }
+        """)
+        return result
+    except Exception as e:
+        logger.debug(f"get_latest_incoming error: {e}")
+        return None
+
+async def get_recent_history(page, limit: int = 15) -> list[dict]:
+    """
+    Returns a list of the most recent messages on screen.
+    Format: [{"role": "them"|"me", "content": "..."}]
+    """
+    try:
+        messages = await page.evaluate("""
+            (limit) => {
+                let results = [];
+                const allDivs = Array.from(document.querySelectorAll('div[dir="auto"]'));
+                for (const el of allDivs) {
+                    const text = el.innerText ? el.innerText.trim() : '';
+                    if (!text || text.length < 1 || text.length > 2000) continue;
+                    
+                    // Only skip if the direct child has the exact same text (to prevent double counting nested divs)
+                    const childDivs = el.querySelectorAll('div[dir="auto"]');
+                    if (childDivs.length > 0 && childDivs[0].innerText?.trim() === text) continue;
+
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width < 10 || rect.height < 10 || rect.top < 0) continue;
+
+                    let role = null;
+                    
+                    // Fallback 1: CSS flex alignment
+                    let curr = el;
+                    while (curr && curr !== document.body) {
+                        const align = window.getComputedStyle(curr).alignSelf;
+                        if (align === 'flex-end') { role = 'you'; break; }
+                        if (align === 'flex-start') { role = 'them'; break; }
+                        curr = curr.parentElement;
+                    }
+
+                    // Fallback 2: Bounding box left/right math
+                    if (!role) {
+                        let parent = el.parentElement;
+                        let rowRect = null;
+                        while (parent) {
+                            const pRect = parent.getBoundingClientRect();
+                            if (pRect.width >= 250 && pRect.width > rect.width * 1.15) {
+                                rowRect = pRect;
+                                break;
+                            }
+                            parent = parent.parentElement;
+                        }
+                        if (!rowRect) rowRect = { left: 0, right: window.innerWidth };
+                        const leftDist = Math.abs(rect.left - rowRect.left);
+                        const rightDist = Math.abs(rowRect.right - rect.right);
+                        if (leftDist < rightDist * 0.85) role = 'them';
+                        else if (rightDist < leftDist * 0.85) role = 'you';
+                        else role = 'them'; // default fallback
+                    }
+                    results.push({role, content: text, y_pos: rect.top});
+                }
+                
+                // --- Pass 2: Media Elements ---
+                const mediaElements = Array.from(document.querySelectorAll('img, video'));
+                for (const el of mediaElements) {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width < 50 || rect.height < 50 || rect.top < 0 || rect.bottom > window.innerHeight + 500) continue;
+                    
+                    // Filter out header/nav and likely profile pics
+                    if (el.closest('header') || el.closest('nav') || el.closest('form')) continue;
+                    const style = window.getComputedStyle(el);
+                    if (style.borderRadius === '50%' && rect.width < 60) continue;
+
+                    if (!el.hasAttribute('data-talking-media-id')) {
+                        el.setAttribute('data-talking-media-id', 'media_' + Math.random().toString(36).substr(2, 9));
+                    }
+                    const selector = `[data-talking-media-id="${el.getAttribute('data-talking-media-id')}"]`;
+
+                    let mediaType = '[Sent a photo]';
+                    if (el.tagName.toLowerCase() === 'video') mediaType = '[Sent a reel/video]';
+                    else if (el.src?.includes('giphy') || el.src?.includes('stickers')) mediaType = '[Sent a GIF/sticker]';
+                    
+                    let role = null;
+                    let curr = el;
+                    while (curr && curr !== document.body) {
+                        const align = window.getComputedStyle(curr).alignSelf;
+                        if (align === 'flex-end') { role = 'you'; break; }
+                        if (align === 'flex-start') { role = 'them'; break; }
+                        curr = curr.parentElement;
+                    }
+                    
+                    if (!role) {
+                        let parent = el.parentElement;
+                        let rowRect = null;
+                        while (parent) {
+                            const pRect = parent.getBoundingClientRect();
+                            if (pRect.width >= 250 && pRect.width > rect.width * 1.15) {
+                                rowRect = pRect;
+                                break;
+                            }
+                            parent = parent.parentElement;
+                        }
+                        if (!rowRect) rowRect = { left: 0, right: window.innerWidth };
+                        const leftDist = Math.abs(rect.left - rowRect.left);
+                        const rightDist = Math.abs(rowRect.right - rect.right);
+                        if (leftDist < rightDist * 0.85) role = 'them';
+                        else if (rightDist < leftDist * 0.85) role = 'you';
+                        else role = 'them';
+                    }
+                    
+                    results.push({
+                        role: role, 
+                        content: mediaType, 
+                        is_media: true, 
+                        element_selector: selector,
+                        y_pos: rect.top 
+                    });
+                }
+
+                // Sort by vertical position (DOM order)
+                results.sort((a, b) => a.y_pos - b.y_pos);
+                
+                // Deduplicate identical consecutive texts (mostly for nested text divs)
+                let deduped = [];
+                for (let r of results) {
+                    if (deduped.length > 0 && !r.is_media && deduped[deduped.length - 1].content === r.content) continue;
+                    deduped.push(r);
+                }
+                return deduped.slice(-limit);
+            }
+        """, limit)
+        return messages or []
+    except Exception as e:
+        logger.error(f"get_recent_history error: {e}")
+        return []
+
+
+import base64
+
+async def describe_media_async(page, contact_id: str, media_type: str, selector: str):
+    """Takes a screenshot of the media element and sends it to the backend for description."""
+    try:
+        # Give it a second to load
+        await asyncio.sleep(1)
+        el = page.locator(selector)
+        count = await el.count()
+        if count == 0:
+            logger.warning(f"Media element {selector} not found for screenshot.")
+            return
+
+        screenshot_bytes = await el.first.screenshot(type='jpeg', quality=80)
+        image_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+        
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(f"{BACKEND_URL}/api/instagram/describe_media", json={
+                "contact_id": contact_id,
+                "media_type": media_type,
+                "image_base64": image_b64
+            })
+            if resp.status_code == 200:
+                logger.info(f"📸 Media described: {resp.json().get('description')}")
+            else:
+                logger.warning(f"Failed to describe media: {resp.text}")
+    except Exception as e:
+        logger.error(f"Error describing media: {e}")
+
+# ─── Send ─────────────────────────────────────────────────────────────────────
+async def send_on_page(page, text: str) -> bool:
+    """Type and send a message in the currently open DM."""
+    try:
+        # Multiple possible selectors for the input box
+        selectors = [
+            'div[aria-label*="Message"][contenteditable="true"]',
+            'div[contenteditable="true"][role="textbox"]',
+            'textarea[placeholder*="Message"]',
+        ]
+        input_box = None
+        for sel in selectors:
+            input_box = await page.query_selector(sel)
+            if input_box:
+                break
+
+        if not input_box:
+            logger.error("Could not find DM input box.")
+            return False
+
+        await input_box.click()
+        await asyncio.sleep(random.uniform(0.3, 0.7))
+        await input_box.type(text, delay=random.randint(50, 130))
+        await asyncio.sleep(random.uniform(0.5, 1.0))
+        await input_box.press("Enter")
+        await asyncio.sleep(random.uniform(1.0, 2.0))
+        
+        # Verify the text actually appeared in the DOM as a 'you' message
+        # Instagram's DOM can sometimes take 2-4 seconds to reflect the new bubble.
+        for attempt in range(4):
+            await asyncio.sleep(1.0)
+            verify_msgs = await get_recent_history(page, limit=5)
+            if not verify_msgs:
+                continue
+                
+            # Normalize text for comparison to handle emoji/whitespace differences
+            def norm(s): return ''.join(e for e in s.lower() if e.isalnum())
+            norm_text = norm(text)
+            
+            # We check if any 'you' message contains a significant portion of our draft
+            # or if our draft contains the DOM message (in case IG split it)
+            success = False
+            for m in verify_msgs:
+                if m["role"] == "you":
+                    norm_dom = norm(m["content"])
+                    if norm_dom and (norm_dom in norm_text or norm_text in norm_dom):
+                        success = True
+                        break
+            
+            if success:
+                logger.info(f"✅ Sent and verified: {text[:60]}...")
+                return True
+                
+        logger.warning("Send appeared to fail (not found in DOM after Enter).")
+        return False
+            
+    except Exception as e:
+        logger.error(f"Send failed: {e}")
+        return False
+
+
+# ─── Main Poll Loop ───────────────────────────────────────────────────────────
+async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_auto: bool = False):
+    global _page_ref
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        _state["error"] = "Playwright not installed."
+        _state["status_text"] = "Error: playwright missing"
+        return
+
+    async with async_playwright() as pw:
+        ctx = await pw.chromium.launch_persistent_context(
+            user_data_dir=str(SESSION_DIR / "chrome_data"),
+            headless=False,
+            viewport={"width": 1280, "height": 900},
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        _page_ref = page
+
+        if not await ensure_logged_in(page, ctx):
+            await ctx.close()
+            return
+
+        # Brief pause after login — let Instagram fully settle before navigating
+        logger.info("Login verified. Navigating to conversation in 3 seconds...")
+        _state["status_text"] = "Login verified — opening conversation..."
+        await asyncio.sleep(3)
+
+        if not await go_to_conversation(page, their_ig_username):
+            await ctx.close()
+            return
+
+        _state["status_text"] = f"Watching conversation"
+
+        # Sync recent history once at startup
+        logger.info("Syncing recent history from screen...")
+        _state["status_text"] = "Syncing recent history..."
+        recent_msgs = await get_recent_history(page, limit=20)
+        if recent_msgs:
+            try:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    await client.post(f"{BACKEND_URL}/api/instagram/sync_history", json={
+                        "contact_id": contact_id,
+                        "messages": recent_msgs
+                    })
+                import time
+                _state["history_synced_at"] = time.time()
+                logger.info(f"Synced {len(recent_msgs)} history messages.")
+            except Exception as e:
+                logger.warning(f"Failed to sync history to backend: {e}")
+        
+        _state["status_text"] = "Watching conversation"
+
+        # Track seen messages as an ordered list for robust sliding-window dedup
+        last_seen_history = []
+        if recent_msgs:
+            for m in recent_msgs:
+                last_seen_history.append((m.get("role", ""), m.get("content", "").strip(), m.get("element_selector", "")))
+
+        consecutive_errors = 0
+        while _state["running"]:
+            try:
+                recent_msgs = await get_recent_history(page, limit=20)
+                consecutive_errors = 0
+
+                if recent_msgs:
+                    current_history = [(m.get("role", ""), m.get("content", "").strip(), m.get("element_selector", "")) for m in recent_msgs]
+                    
+                    new_msgs = []
+                    overlap_idx = 0
+                    
+                    # Find longest suffix of last_seen_history that matches a prefix of current_history
+                    for i in range(len(current_history), 0, -1):
+                        prefix = current_history[:i]
+                        suffix_len = len(prefix)
+                        if len(last_seen_history) >= suffix_len:
+                            if last_seen_history[-suffix_len:] == prefix:
+                                overlap_idx = i
+                                break
+                    
+                    if overlap_idx < len(current_history):
+                        new_msgs = recent_msgs[overlap_idx:]
+                        last_seen_history.extend(current_history[overlap_idx:])
+                        # Keep it bounded to avoid unbounded growth
+                        last_seen_history = last_seen_history[-100:]
+                    
+                    if new_msgs:
+                        # Sync new messages to backend DB
+                        try:
+                            async with httpx.AsyncClient(timeout=10) as client:
+                                await client.post(f"{BACKEND_URL}/api/instagram/sync_history", json={
+                                    "contact_id": contact_id,
+                                    "messages": new_msgs
+                                })
+                            import time
+                            _state["history_synced_at"] = time.time()
+                        except Exception as e:
+                            logger.warning(f"Failed to sync history: {e}")
+
+                        # Trigger background vision descriptions for new media
+                        for m in new_msgs:
+                            if m.get("is_media"):
+                                asyncio.create_task(describe_media_async(page, contact_id, m["content"], m["element_selector"]))
+
+                        you_new_msgs = [m["content"] for m in new_msgs if m["role"] == "you"]
+                        them_new_msgs = [m["content"] for m in new_msgs if m["role"] == "them"]
+
+                        if you_new_msgs:
+                            # User manually replied (or auto-send just happened). Clear pending draft.
+                            _state["pending_reply"] = None
+                            _state["status_text"] = "Watching conversation"
+                            logger.info(f"👤 Detected your reply: {you_new_msgs[-1][:80]}")
+
+                        if them_new_msgs:
+                            new_text = "\n".join(them_new_msgs)
+                            _state["last_message"] = new_text
+                            logger.info(f"📨 New message: {new_text[:100]}")
+                            _state["status_text"] = f"New msg — generating reply..."
+                            _state["pending_reply"] = None
+
+                            # Hit the backend generate endpoint
+                            async with httpx.AsyncClient(timeout=60.0) as client:
+                                resp = await client.post(f"{BACKEND_URL}/api/message", json={
+                                    "contact_id": contact_id,
+                                    "incoming_message": new_text,
+                                    "mood": mood,
+                                    "pro_mode": True,
+                                })
+                                if resp.status_code == 200:
+                                    draft = resp.json().get("draft", "")
+                                    _state["pending_reply"] = draft
+                                    
+                                    if full_auto:
+                                        _state["status_text"] = "Auto-sending reply..."
+                                        logger.info(f"💬 Full Auto: sending '{draft[:80]}'")
+                                        success = await send_on_page(page, draft)
+                                        if success:
+                                            _state["pending_reply"] = None
+                                            _state["last_sent"] = draft
+                                            _state["status_text"] = "Watching conversation"
+                                            # Mark as sent. The sliding window diff will naturally
+                                            # deduplicate it when it appears in the DOM.
+                                        else:
+                                            _state["status_text"] = "Auto-send failed. Retrying..."
+                                            _state["pending_reply"] = None # Clear draft so it tries again
+                                    else:
+                                        _state["status_text"] = "Draft ready — awaiting approval"
+                                        logger.info(f"💬 Draft ready: {draft[:80]}")
+                                else:
+                                    _state["status_text"] = "Generation failed"
+                                    logger.warning(f"Backend error {resp.status_code}")
+
+                await asyncio.sleep(random.uniform(POLL_MIN, POLL_MAX))
+
+                # Occasional micro-scroll to keep session alive
+                if random.random() < 0.15:
+                    await page.mouse.wheel(0, random.choice([-30, 30]))
+
+            except Exception as e:
+                consecutive_errors += 1
+                logger.warning(f"Poll error ({consecutive_errors}/3): {repr(e)}")
+                if consecutive_errors >= 3:
+                    logger.error("Too many consecutive errors, watcher crashing.")
+                    _state["status_text"] = "Watcher crashed. Please restart."
+                    _state["running"] = False
+                    break
+                await asyncio.sleep(5)
+
+        _page_ref = None
+        await ctx.close()
+        _state["status_text"] = "Stopped"
+        logger.info("Watcher stopped cleanly.")
+
+
+async def send_approved_reply(text: str) -> bool:
+    """Called by the backend when user approves a draft. Sends on the open page."""
+    global _page_ref, _loop_ref
+    if _page_ref is None or _loop_ref is None:
+        logger.error("No active page/loop — watcher not running.")
+        return False
+        
+    try:
+        import concurrent.futures
+        future = asyncio.run_coroutine_threadsafe(send_on_page(_page_ref, text), _loop_ref)
+        success = await asyncio.wrap_future(future)
+        if success:
+            _state["pending_reply"] = None
+            _state["status_text"] = f"Watching @{_state['ig_username']}"
+            # Also add to seen fingerprints to prevent re-reading as manual reply
+            # (handled later in the positional fingerprint fix, but good for now)
+            # We don't have access to the inner state here easily, but we can do it if needed.
+        return success
+    except Exception as e:
+        logger.error(f"Cross-thread send failed: {e}")
+        return False
+
+
+# ─── Public Start ─────────────────────────────────────────────────────────────
+def start_watcher(contact_id: str, their_ig_username: str, mood: str = "default", full_auto: bool = False):
+    """Launch the watcher in a background thread with its own event loop."""
+    import threading
+
+    if _state["running"]:
+        logger.warning("Watcher already running. Stop it first.")
+        return
+    _state.update({
+        "running": True,
+        "contact_id": contact_id,
+        "ig_username": their_ig_username,
+        "last_message": None,
+        "last_sent": None,
+        "pending_reply": None,
+        "error": None,
+        "status_text": "Starting Playwright...",
+        "history_synced_at": 0,
+    })
+
+    def _thread():
+        global _loop_ref
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        _loop_ref = loop
+        try:
+            loop.run_until_complete(_watch_loop(contact_id, their_ig_username, mood, full_auto))
+        finally:
+            loop.close()
+            _state["running"] = False
+            _state["status_text"] = "Stopped"
+
+    threading.Thread(target=_thread, daemon=True, name="ig_watcher").start()
+    logger.info(f"Watcher started for @{their_ig_username} (contact {contact_id})")

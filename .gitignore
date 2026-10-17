@@ -1,23 +1,51 @@
-# Virtual Environment
+# Environment variables & secrets
+.env
+.env.local
+*.env
+!.env.example
+
+# Python virtual environment & bytecode
+__pycache__/
+*.py[cod]
+*$py.class
 venv/
 .venv/
 env/
 ENV/
 
-# Python caching
-__pycache__/
-*.py[cod]
-*$py.class
+# Development & server logs
+*.log
+traceback.txt
+progress.txt
 
-# Environment variables (sensitive!)
-.env
-.env.*
-
-# Local databases and exports
+# Private user databases, embeddings, sessions, and raw chat exports
 data/db/
 data/exports/
+data/ig_session/
+!data/db/.gitkeep
+!data/exports/.gitkeep
 *.db
+*.sqlite
 *.sqlite3
 
-# Log files
-*.log
+# Personal identity, personal context, college/life notes, and empirical fingerprints
+# (Templates are tracked; personal runtime data and notes are strictly ignored)
+data/*.md
+!data/SOUL.template.md
+!data/STYLE.template.md
+data/SOUL.md
+data/STYLE.md
+data/VIT_*.md
+
+# Backups & temporary files
+*.bak
+*.swp
+*.tmp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
