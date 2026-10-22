@@ -22,6 +22,7 @@ Talking addresses this by conditioning drafts on how you actually write. It anal
 - **Contact memory**: Stores chat history in SQLite and vectorized conversation chunks in ChromaDB with Gemini embeddings to surface past topics, inside jokes, and recent context.
 - **Persona grounding**: Injects `SOUL.md`, a local file covering your background, opinions, and current life context, into the prompt.
 - **Human-in-the-loop review**: Generated drafts appear in a local dashboard. You can adjust tone modifiers (chill, direct, dry, flirty), edit the draft, or copy it. User edits are saved to refine future responses for that contact.
+- **Lyric and callback resolution**: When an incoming message references a song lyric or cultural callback, the system checks past conversation history and search-grounded lookups to identify the reference and draft the natural next line rather than a literal reply.
 - **Multimodal input**: Paste incoming text or drop a screenshot of the chat thread; Gemini Vision extracts the sender's text directly.
 
 ---
@@ -71,6 +72,24 @@ A comparison of responses to a casual incoming message:
 > "yeah fr ill be there around 5, gotta finish some work first tho"
 
 The draft reflects lower capitalization rates, common shorthand, and shorter sentence length based on the extracted style profile.
+
+### Lyric and Callback Resolution
+
+When an incoming message drops a song lyric or cultural callback, standard models usually misunderstand the setup and generate literal replies:
+
+*Incoming:*
+> "how can i be homophobic"
+
+*Default model output:*
+> "I'm not sure what you mean, but it is important to treat all people with respect regardless of sexual orientation."
+
+*Talking draft:*
+> "my bitch is gay"
+
+When an incoming message contains music keywords or fits a short, stylized lyrical pattern, the context assembler activates a two-stage resolver:
+1. **Local call-and-response search**: Scans retrieved chat history for past instances where either speaker completed the line.
+2. **Search-grounded lyric verification**: If the line isn't present in local chats, it queries Gemini with Google Search enabled to identify the track and return the immediate continuation (capped at 10 words).
+3. **Style adaptation**: Converts the line into your casing and texting habits rather than inserting a raw quote.
 
 ### Extracted Style Profile (`STYLE.md`)
 
@@ -122,7 +141,10 @@ flowchart TD
         N["SOUL.md"] --> L
         E --> L
         O["Mood Setting"] --> L
-        L --> P["Gemini 2.5 Flash"]
+        L --> U{"Lyric / Reference?"}
+        U -->|Yes| V["Search-Grounded Resolver"]
+        V --> P["Gemini 2.5 Flash"]
+        U -->|No| P
         P --> Q["Draft Reply"]
         Q --> R{"Review"}
         R -->|Approve| S["Copied to Clipboard"]
