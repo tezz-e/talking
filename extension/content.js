@@ -387,6 +387,10 @@
             <!-- Variant chips rendered dynamically -->
           </div>
 
+          <div class="tk-bubbles-stack" id="tk-bubbles-stack" style="display: none;">
+            <!-- Split bubble bursts rendered dynamically -->
+          </div>
+
           <textarea class="tk-draft-textarea" id="tk-draft-text" placeholder="Draft reply..."></textarea>
           `
         }
@@ -425,6 +429,7 @@
   function bindModalActions(modal, data) {
     const draftTextarea = modal.querySelector('#tk-draft-text');
     const variantsBar = modal.querySelector('#tk-variants-bar');
+    const bubblesStack = modal.querySelector('#tk-bubbles-stack');
     const proToggle = modal.querySelector('#tk-pro-toggle-cb');
     const regenBtn = modal.querySelector('#tk-regen-btn');
     const copyBtn = modal.querySelector('#tk-copy-btn');
@@ -434,25 +439,68 @@
     activeOriginalDraft = data.draft;
     activeVariants = data.variants || [];
 
+    function renderBubbles(bubbles) {
+      if (!bubblesStack) return;
+      if (!bubbles || bubbles.length <= 1) {
+        bubblesStack.innerHTML = '';
+        bubblesStack.style.display = 'none';
+        return;
+      }
+      bubblesStack.style.display = 'flex';
+      bubblesStack.innerHTML = '';
+      bubbles.forEach((bText, idx) => {
+        const item = document.createElement('div');
+        item.className = 'tk-bubble-item';
+        item.title = 'Click to insert only this bubble';
+        item.innerHTML = `
+          <span class="tk-bubble-num">${idx + 1}</span>
+          <span class="tk-bubble-text">${escapeHtml(bText)}</span>
+          <span class="tk-bubble-insert-icon">↵</span>
+        `;
+        item.addEventListener('click', () => {
+          insertTextIntoChat(bText);
+          if (activeContactId) {
+            fetch(`${BACKEND_BASE}/api/approve`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contact_id: activeContactId,
+                original_draft: activeOriginalDraft || bText,
+                final_message: bText,
+              }),
+            }).catch(() => {});
+          }
+          closeCopilotModal();
+        });
+        bubblesStack.appendChild(item);
+      });
+    }
+
     // Render variant buttons
     if (variantsBar && activeVariants.length > 0) {
       const icons = { chill: '🧊', direct: '🎯', banter: '🔥' };
       variantsBar.innerHTML = '';
       activeVariants.forEach((v) => {
+        const countBadge = v.bubbles && v.bubbles.length > 1
+          ? `<span class="tk-variant-count-badge">${v.bubbles.length}</span>`
+          : '';
         const btn = document.createElement('button');
         btn.className = `tk-variant-btn ${v.label === currentVariantLabel ? 'tk-active' : ''}`;
-        btn.innerHTML = `<span>${icons[v.label] || '⚡'}</span> ${v.label.charAt(0).toUpperCase() + v.label.slice(1)}`;
+        btn.innerHTML = `<span>${icons[v.label] || '⚡'}</span> ${v.label.charAt(0).toUpperCase() + v.label.slice(1)}${countBadge}`;
         btn.addEventListener('click', () => {
           variantsBar.querySelectorAll('.tk-variant-btn').forEach((b) => b.classList.remove('tk-active'));
           btn.classList.add('tk-active');
           currentVariantLabel = v.label;
           draftTextarea.value = v.text;
+          renderBubbles(v.bubbles);
         });
         variantsBar.appendChild(btn);
       });
     }
 
     draftTextarea.value = data.draft || '';
+    const activeVar = activeVariants.find((v) => v.label === currentVariantLabel) || activeVariants[0];
+    renderBubbles(data.bubbles || activeVar?.bubbles);
 
     // Pro mode toggle
     proToggle?.addEventListener('change', (e) => {

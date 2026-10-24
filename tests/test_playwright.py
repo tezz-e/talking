@@ -483,6 +483,79 @@ class TestPlaywrightE2E(unittest.TestCase):
         self.assertIn("Replying to", result)
         self.assertIn("Movie night at 8pm?", result)
 
+    # ── Test 11: In-Page Copilot Multi-Bubble Burst Rendering ─────────
+    def test_in_page_copilot_multi_bubble_bursts(self):
+        """
+        Verifies that when a draft has multiple bubbles,
+        the copilot modal renders the .tk-bubbles-stack with individual bubble chips
+        and clicking a bubble item inserts only that bubble into the chat input.
+        """
+        mock_chat_html = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>WhatsApp Web</title></head>
+        <body>
+          <div id="app">
+            <header><span dir="auto" title="Alex">Alex</span></header>
+            <div class="conversation">
+              <div class="message-in"><div class="selectable-text">Did you see the new venue?</div></div>
+            </div>
+            <footer>
+              <div id="chatInput" role="textbox" contenteditable="true"></div>
+            </footer>
+          </div>
+        </body>
+        </html>
+        """
+        self.page.set_content(mock_chat_html)
+        content_js_path = Path(__file__).parent.parent / "extension" / "content.js"
+        js_code = content_js_path.read_text(encoding="utf-8")
+
+        # Mock fetch to return multi-bubble draft and trigger generation
+        self.page.evaluate(f"""
+        () => {{
+            window.__MOCK_PLATFORM__ = 'whatsapp';
+            {js_code}
+            window.fetch = async (url) => {{
+                if (url.includes('/api/copilot/draft')) {{
+                    return {{
+                        ok: true,
+                        json: async () => ({{
+                            contact_id: 'test_c',
+                            contact_name: 'Alex',
+                            draft: "wait really\\ni thought that was closed mondays haha",
+                            bubbles: ["wait really", "i thought that was closed mondays haha"],
+                            variants: [
+                                {{
+                                    label: 'chill',
+                                    text: "wait really\\ni thought that was closed mondays haha",
+                                    bubbles: ["wait really", "i thought that was closed mondays haha"]
+                                }}
+                            ]
+                        }})
+                    }};
+                }}
+                return {{ ok: true, json: async () => ({{}}) }};
+            }};
+            window._talkingCopilot.triggerDraftGeneration();
+        }}
+        """)
+
+        # Wait for modal and bubbles stack
+        self.page.wait_for_selector("#tk-bubbles-stack", state="visible")
+        bubble_items = self.page.locator(".tk-bubble-item")
+        self.assertEqual(bubble_items.count(), 2)
+
+        # First bubble text
+        self.assertIn("wait really", bubble_items.first.text_content())
+
+        # Click the second bubble to insert just that bubble
+        bubble_items.nth(1).click()
+
+        # Check inserted text in the input
+        input_text = self.page.locator("#chatInput").text_content().strip()
+        self.assertEqual(input_text, "i thought that was closed mondays haha")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -813,6 +813,46 @@ h1, h2, h3, h4 {
   font-size: 0.85rem;
 }
 
+.dashboard-bubbles-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.dashboard-bubble-item {
+  background: rgba(124, 58, 237, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 12px 12px 12px 4px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s ease;
+}
+
+.dashboard-bubble-item:hover {
+  background: rgba(124, 58, 237, 0.22);
+  border-color: rgba(168, 85, 247, 0.45);
+}
+
+.dashboard-bubble-item .bubble-idx {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-light);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.dashboard-bubble-item .bubble-text {
+  flex: 1;
+}
+
 .draft-actions {
   display: flex;
   gap: 8px;

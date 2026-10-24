@@ -525,6 +525,64 @@ Hope this helps!"""
         self.assertIn("nah was too tired haha", user_msgs)
         self.assertIn("yeah should be down!", user_msgs)
 
+    def test_multi_bubble_variant_parsing(self):
+        """Verifies that generate_variants handles lists of bubbles as well as multi-line strings."""
+        from unittest.mock import MagicMock
+        from backend.llm import GeminiLLM
+        import json
+
+        llm = GeminiLLM.__new__(GeminiLLM)
+        llm.model = "test-model"
+        llm.client = MagicMock()
+
+        # Mock API returning multi-bubble array JSON
+        mock_response = MagicMock()
+        mock_response.text = json.dumps({
+            "chill": ["wait really", "i thought that was closed monday"],
+            "direct": ["yeah for sure", "let's do 7pm"],
+            "banter": "bold of you to assume i can cook // order thai instead? 💀",
+        })
+        llm.client.models.generate_content.return_value = mock_response
+
+        variants = llm.generate_variants("sys_instruction", "user_msg")
+
+        # Verify chill variant has 2 split bubbles and text joined by newline
+        self.assertEqual(variants["chill"]["bubbles"], ["wait really", "i thought that was closed monday"])
+        self.assertEqual(variants["chill"]["text"], "wait really\ni thought that was closed monday")
+
+        # Verify direct variant has 2 bubbles
+        self.assertEqual(variants["direct"]["bubbles"], ["yeah for sure", "let's do 7pm"])
+
+        # Verify banter parsed // delimiter into 2 bubbles
+        self.assertEqual(len(variants["banter"]["bubbles"]), 2)
+        self.assertIn("bold of you to assume i can cook", variants["banter"]["bubbles"])
+
+    def test_multi_bubble_copilot_endpoint(self):
+        """Verifies that /api/copilot/draft returns the bubbles array."""
+        from fastapi.testclient import TestClient
+        from backend.main import app, db
+
+        client = TestClient(app)
+        res = client.post(
+            "/api/copilot/draft",
+            json={
+                "contact_name": "Bubble Friend",
+                "incoming_message": "are you free this weekend?",
+                "mood": "chill",
+            },
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("bubbles", data)
+        self.assertIsInstance(data["bubbles"], list)
+        self.assertIn("variants", data)
+        for v in data["variants"]:
+            self.assertIn("bubbles", v)
+            self.assertIsInstance(v["bubbles"], list)
+
+        # Cleanup
+        db.delete_contact(data["contact_id"])
+
 
 if __name__ == "__main__":
     unittest.main()

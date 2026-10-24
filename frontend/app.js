@@ -635,10 +635,27 @@ async function handleDeleteFact(factId) {
   }
 }
 
+function renderDraftContent(draftText, bubbles = []) {
+  dom.draftContent.innerHTML = '';
+  if (bubbles && bubbles.length > 1) {
+    const container = document.createElement('div');
+    container.className = 'dashboard-bubbles-stack';
+    bubbles.forEach((bText, idx) => {
+      const bEl = document.createElement('div');
+      bEl.className = 'dashboard-bubble-item';
+      bEl.innerHTML = `<span class="bubble-idx">${idx + 1}</span> <span class="bubble-text">${escapeHtml(bText)}</span>`;
+      container.appendChild(bEl);
+    });
+    dom.draftContent.appendChild(container);
+  } else {
+    dom.draftContent.textContent = draftText;
+  }
+}
+
 /**
  * Show the AI draft in the draft panel.
  */
-function showDraft(draft, confidence, variants = []) {
+function showDraft(draft, confidence, variants = [], bubbles = []) {
   state.currentDraft = draft;
   state.currentDraftRaw = draft;
   state.currentConfidence = confidence;
@@ -651,16 +668,19 @@ function showDraft(draft, confidence, variants = []) {
       dom.draftVariants.innerHTML = '';
       const icons = { chill: '🧊', direct: '🎯', banter: '🔥' };
       variants.forEach((v) => {
+        const countBadge = v.bubbles && v.bubbles.length > 1
+          ? `<span class="variant-count" style="font-size:10px; background:rgba(255,255,255,0.12); padding:1px 5px; border-radius:999px; margin-left:4px;">${v.bubbles.length}</span>`
+          : '';
         const btn = document.createElement('button');
         btn.className = `variant-chip ${v.text === draft ? 'active' : ''}`;
         btn.dataset.variant = v.label;
-        btn.innerHTML = `<span class="variant-icon">${icons[v.label] || '⚡'}</span> ${v.label.charAt(0).toUpperCase() + v.label.slice(1)}`;
+        btn.innerHTML = `<span class="variant-icon">${icons[v.label] || '⚡'}</span> ${v.label.charAt(0).toUpperCase() + v.label.slice(1)}${countBadge}`;
         btn.addEventListener('click', () => {
           dom.draftVariants.querySelectorAll('.variant-chip').forEach((b) => b.classList.remove('active'));
           btn.classList.add('active');
           state.currentDraft = v.text;
           state.currentDraftRaw = v.text;
-          dom.draftContent.textContent = v.text;
+          renderDraftContent(v.text, v.bubbles);
         });
         dom.draftVariants.appendChild(btn);
       });
@@ -671,8 +691,8 @@ function showDraft(draft, confidence, variants = []) {
   }
 
   // Content
-  dom.draftContent.innerHTML = '';
-  dom.draftContent.textContent = draft;
+  const activeVar = variants.find((v) => v.text === draft) || variants[0];
+  renderDraftContent(draft, bubbles.length ? bubbles : (activeVar?.bubbles || []));
   dom.draftContent.classList.remove('editable');
 
   // Confidence badge
@@ -740,7 +760,7 @@ async function handleSend() {
     setLoading(false);
 
     if (result && result.draft) {
-      showDraft(result.draft, result.confidence ?? 0.85, result.variants || []);
+      showDraft(result.draft, result.confidence ?? 0.85, result.variants || [], result.bubbles || []);
 
       // If a steering directive was passed, refresh contact profile to reflect updates
       if (steering) {
@@ -798,7 +818,7 @@ async function handleRegenerate() {
     setLoading(false);
 
     if (result && result.draft) {
-      showDraft(result.draft, result.confidence ?? 0.85, result.variants || []);
+      showDraft(result.draft, result.confidence ?? 0.85, result.variants || [], result.bubbles || []);
       showToast(state.proMode ? '⚡ Pro draft regenerated' : 'Draft regenerated', 'info');
     }
   } catch (err) {

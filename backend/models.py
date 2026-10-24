@@ -126,6 +126,7 @@ class SteerResponse(BaseModel):
 class DraftVariant(BaseModel):
     label: str = Field(..., description="Energy label: chill, direct, or banter")
     text: str = Field(..., description="Draft text for this variant")
+    bubbles: List[str] = Field(default_factory=list, description="Split bubbles for natural texting bursts")
 
 
 class CopilotDraftRequest(BaseModel):
@@ -142,6 +143,7 @@ class CopilotDraftResponse(BaseModel):
     contact_id: str
     contact_name: str
     draft: str
+    bubbles: List[str] = Field(default_factory=list, description="Multi-bubble text parts")
     variants: List[DraftVariant] = Field(default_factory=list)
     confidence: float = 0.85
     retrieved_memories: List[str] = Field(default_factory=list)
@@ -163,6 +165,7 @@ class SyncHistoryRequest(BaseModel):
 class GenerateResponse(BaseModel):
     """AI-generated draft reply."""
     draft: str = Field(..., description="The generated reply text")
+    bubbles: List[str] = Field(default_factory=list, description="Multi-bubble text parts for primary draft")
     confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Model confidence")
     retrieved_memories: List[str] = Field(default_factory=list, description="Memories used for context")
     variants: List[DraftVariant] = Field(default_factory=list, description="Alternative energy variants")

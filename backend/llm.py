@@ -8,7 +8,7 @@ Includes retry logic with exponential backoff for rate limits.
 import os
 import time
 import logging
-from typing import Optional
+from typing import Optional, Any, Dict, List
 import requests
 
 from google import genai
@@ -59,15 +59,26 @@ class GeminiLLM:
                 return fn(*args, **kwargs)
             except Exception as exc:
                 error_str = str(exc).lower()
-                is_rate_limit = (
-                    "429" in error_str
-                    or "resource_exhausted" in error_str
-                    or "rate" in error_str
+                is_transient = any(
+                    term in error_str
+                    for term in [
+                        "429",
+                        "resource_exhausted",
+                        "rate",
+                        "503",
+                        "unavailable",
+                        "spikes in demand",
+                        "overloaded",
+                        "500",
+                        "internal",
+                        "timeout",
+                        "connectionreset",
+                    ]
                 )
 
-                if is_rate_limit and attempt < self.MAX_RETRIES:
+                if is_transient and attempt < self.MAX_RETRIES:
                     wait = self.BASE_BACKOFF * (2 ** (attempt - 1))
-                    msg = f"[LLM API] Rate limited (attempt {attempt}/{self.MAX_RETRIES}). Retrying in {wait:.1f}s..."
+                    msg = f"[LLM API] Transient error / rate limited (attempt {attempt}/{self.MAX_RETRIES}). Retrying in {wait:.1f}s..."
                     print(msg)
                     logger.warning(msg)
                     time.sleep(wait)
@@ -130,17 +141,17 @@ class GeminiLLM:
         system_instruction: str,
         user_message: str,
         temperature: float = 0.7,
-    ) -> dict[str, str]:
+    ) -> dict[str, dict[str, Any]]:
         """
         Generate 3 calibrated energy drafts in one API call:
           - chill: low-effort, casual, relaxed, short (1-6 words)
           - direct: natural, clear, moving conversation forward
           - banter: witty, playful, teasing, or callback banter
 
-        Returns dict with keys: 'chill', 'direct', 'banter'.
+        Supports multi-bubble bursts (double-texting / split messages).
+        Returns dict where each key maps to {'text': str, 'bubbles': list[str]}.
         """
         import json
-        import re
 
         prompt = (
             f"{user_message}\n\n"
@@ -148,7 +159,12 @@ class GeminiLLM:
             "1. 'chill': Low-effort, super relaxed, casual, short (1 to 6 words).\n"
             "2. 'direct': Natural, balanced, clear, moving the conversation forward.\n"
             "3. 'banter': Playful, witty, light teasing, or inside-joke / callback energy.\n\n"
-            "Output strictly valid JSON with keys: \"chill\", \"direct\", \"banter\"."
+            "MULTI-BUBBLE BURSTS:\n"
+            "If a reply naturally flows as 2 or 3 quick message bursts (e.g. ['wait really', 'i thought that was closed monday'] "
+            "or ['nah that's wild', 'where did you find that 💀']), return it as a list of strings. "
+            "Otherwise, a single string or 1-item list is fine.\n\n"
+            "Output strictly valid JSON with keys: \"chill\", \"direct\", \"banter\".\n"
+            "Values can be a list of strings (e.g. [\"bubble 1\", \"bubble 2\"]) or a single string."
         )
 
         def _call():
@@ -164,17 +180,37 @@ class GeminiLLM:
             return response.text
 
         raw = self._retry(_call)
+        result: dict[str, dict[str, Any]] = {}
         try:
             cleaned = self._clean_json_text(raw)
             data = json.loads(cleaned)
-            return {
-                "chill": str(data.get("chill", "")).strip(),
-                "direct": str(data.get("direct", "")).strip(),
-                "banter": str(data.get("banter", "")).strip(),
-            }
+            for label in ("chill", "direct", "banter"):
+                val = data.get(label, "")
+                if isinstance(val, list):
+                    bubbles = [str(b).strip() for b in val if str(b).strip()]
+                    text = "\n".join(bubbles)
+                elif isinstance(val, str):
+                    val_s = val.strip()
+                    if "\n" in val_s:
+                        bubbles = [b.strip() for b in val_s.split("\n") if b.strip()]
+                    elif " // " in val_s:
+                        bubbles = [b.strip() for b in val_s.split(" // ") if b.strip()]
+                    else:
+                        bubbles = [val_s] if val_s else []
+                    text = "\n".join(bubbles)
+                else:
+                    bubbles = []
+                    text = ""
+                result[label] = {"text": text, "bubbles": bubbles}
+            return result
         except Exception as exc:
             logger.warning("Variant JSON parsing failed, using raw output: %s", exc)
-            return {"direct": raw.strip(), "chill": "", "banter": ""}
+            fallback_text = raw.strip()
+            return {
+                "direct": {"text": fallback_text, "bubbles": [fallback_text] if fallback_text else []},
+                "chill": {"text": "", "bubbles": []},
+                "banter": {"text": "", "bubbles": []},
+            }
 
     def generate_with_google_search(
         self,

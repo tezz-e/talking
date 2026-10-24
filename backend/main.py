@@ -178,6 +178,7 @@ def handle_message(req: GenerateRequest):
 
     variants: list[DraftVariant] = []
     draft = ""
+    bubbles: list[str] = []
     try:
         variant_dict = llm.generate_variants(
             sys_prompt,
@@ -185,27 +186,45 @@ def handle_message(req: GenerateRequest):
             temperature=0.6 if req.pro_mode else 0.75,
         )
         for label in ("chill", "direct", "banter"):
-            text = variant_dict.get(label, "").strip()
+            val = variant_dict.get(label, {})
+            if isinstance(val, dict):
+                text = str(val.get("text", "")).strip()
+                v_bubbles = [str(b).strip() for b in val.get("bubbles", []) if str(b).strip()]
+            else:
+                text = str(val).strip()
+                v_bubbles = [text] if text else []
             if text:
-                variants.append(DraftVariant(label=label, text=text))
+                variants.append(DraftVariant(label=label, text=text, bubbles=v_bubbles))
 
         # Select initial draft according to mood
-        if req.mood and req.mood.value in ("chill", "dry") and variant_dict.get("chill"):
-            draft = variant_dict["chill"]
-        elif req.mood and req.mood.value in ("flirty", "funny") and variant_dict.get("banter"):
-            draft = variant_dict["banter"]
-        else:
-            draft = variant_dict.get("direct") or (variants[0].text if variants else "")
+        active_variant = None
+        if req.mood and req.mood.value in ("chill", "dry"):
+            active_variant = next((v for v in variants if v.label == "chill"), None)
+        elif req.mood and req.mood.value in ("flirty", "funny"):
+            active_variant = next((v for v in variants if v.label == "banter"), None)
+
+        if not active_variant:
+            active_variant = next((v for v in variants if v.label == "direct"), None) or (variants[0] if variants else None)
+
+        if active_variant:
+            draft = active_variant.text
+            bubbles = active_variant.bubbles
     except Exception as exc:
         draft = llm.generate(sys_prompt, user_msg, temperature=0.6 if req.pro_mode else 0.8)
+        bubbles = [draft.strip()] if draft.strip() else []
 
     if not draft and variants:
         draft = variants[0].text
+        bubbles = variants[0].bubbles
+
+    if not bubbles and draft:
+        bubbles = [draft]
 
     confidence = 0.92 if req.pro_mode else 0.85
     
     return GenerateResponse(
         draft=draft,
+        bubbles=bubbles,
         confidence=confidence,
         retrieved_memories=retrieved,
         variants=variants,
@@ -240,6 +259,7 @@ def handle_copilot_draft(req: CopilotDraftRequest):
         contact_id=contact.id,
         contact_name=contact.name,
         draft=gen_res.draft,
+        bubbles=gen_res.bubbles,
         variants=gen_res.variants,
         confidence=gen_res.confidence,
         retrieved_memories=gen_res.retrieved_memories,
@@ -281,6 +301,7 @@ def handle_regenerate(req: GenerateRequest):
 
     variants: list[DraftVariant] = []
     draft = ""
+    bubbles: list[str] = []
     try:
         variant_dict = llm.generate_variants(
             sys_prompt,
@@ -288,26 +309,44 @@ def handle_regenerate(req: GenerateRequest):
             temperature=0.75 if req.pro_mode else 0.9,
         )
         for label in ("chill", "direct", "banter"):
-            text = variant_dict.get(label, "").strip()
+            val = variant_dict.get(label, {})
+            if isinstance(val, dict):
+                text = str(val.get("text", "")).strip()
+                v_bubbles = [str(b).strip() for b in val.get("bubbles", []) if str(b).strip()]
+            else:
+                text = str(val).strip()
+                v_bubbles = [text] if text else []
             if text:
-                variants.append(DraftVariant(label=label, text=text))
+                variants.append(DraftVariant(label=label, text=text, bubbles=v_bubbles))
 
-        if req.mood and req.mood.value in ("chill", "dry") and variant_dict.get("chill"):
-            draft = variant_dict["chill"]
-        elif req.mood and req.mood.value in ("flirty", "funny") and variant_dict.get("banter"):
-            draft = variant_dict["banter"]
-        else:
-            draft = variant_dict.get("direct") or (variants[0].text if variants else "")
+        active_variant = None
+        if req.mood and req.mood.value in ("chill", "dry"):
+            active_variant = next((v for v in variants if v.label == "chill"), None)
+        elif req.mood and req.mood.value in ("flirty", "funny"):
+            active_variant = next((v for v in variants if v.label == "banter"), None)
+
+        if not active_variant:
+            active_variant = next((v for v in variants if v.label == "direct"), None) or (variants[0] if variants else None)
+
+        if active_variant:
+            draft = active_variant.text
+            bubbles = active_variant.bubbles
     except Exception:
         draft = llm.generate(sys_prompt, user_msg, temperature=0.9)
+        bubbles = [draft.strip()] if draft.strip() else []
 
     if not draft and variants:
         draft = variants[0].text
+        bubbles = variants[0].bubbles
+
+    if not bubbles and draft:
+        bubbles = [draft]
 
     confidence = 0.92 if req.pro_mode else 0.85
     
     return GenerateResponse(
         draft=draft,
+        bubbles=bubbles,
         confidence=confidence,
         retrieved_memories=retrieved,
         variants=variants,
