@@ -8,3 +8,6 @@ ftfy
 pydantic
 python-multipart
 aiofiles
+python-dotenv
+requests
+httpx

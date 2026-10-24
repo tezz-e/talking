@@ -73,6 +73,9 @@ class DatabaseManager:
                     inside_jokes TEXT DEFAULT '[]',
                     style_notes TEXT DEFAULT '',
                     notes TEXT DEFAULT '',
+                    convo_goal TEXT DEFAULT 'just_vibing',
+                    my_impression TEXT DEFAULT '',
+                    strategy_note TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
@@ -115,6 +118,27 @@ class DatabaseManager:
                 """
             )
 
+            # Auto-migrate any missing columns on existing contacts table
+            cols = [r["name"] for r in conn.execute("PRAGMA table_info(contacts)").fetchall()]
+            if "convo_goal" not in cols:
+                conn.execute("ALTER TABLE contacts ADD COLUMN convo_goal TEXT DEFAULT 'just_vibing'")
+            if "my_impression" not in cols:
+                conn.execute("ALTER TABLE contacts ADD COLUMN my_impression TEXT DEFAULT ''")
+            if "strategy_note" not in cols:
+                conn.execute("ALTER TABLE contacts ADD COLUMN strategy_note TEXT DEFAULT ''")
+
+            # Clean up duplicate adjacent messages created by prior approval bugs
+            conn.execute(
+                """
+                DELETE FROM messages
+                WHERE id NOT IN (
+                    SELECT MIN(id)
+                    FROM messages
+                    GROUP BY contact_id, role, content, strftime('%Y-%m-%d %H:%M', timestamp)
+                )
+                """
+            )
+
     # ── Row → Model helpers ───────────────────────────────────────────────
 
     @staticmethod
@@ -124,6 +148,9 @@ class DatabaseManager:
         d["their_interests"] = json.loads(d.get("their_interests", "[]"))
         d["inside_jokes"] = json.loads(d.get("inside_jokes", "[]"))
         d["relationship_stage"] = RelationshipStage(d.get("relationship_stage", "acquaintance"))
+        d["convo_goal"] = d.get("convo_goal") or "just_vibing"
+        d["my_impression"] = d.get("my_impression") or ""
+        d["strategy_note"] = d.get("strategy_note") or ""
         return Contact(**d)
 
     @staticmethod
@@ -151,8 +178,9 @@ class DatabaseManager:
                 INSERT INTO contacts
                     (id, name, relationship_stage, how_you_know,
                      their_interests, inside_jokes, style_notes, notes,
+                     convo_goal, my_impression, strategy_note,
                      created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     contact.id,
@@ -163,6 +191,9 @@ class DatabaseManager:
                     json.dumps(contact.inside_jokes),
                     contact.style_notes,
                     contact.notes,
+                    getattr(contact, "convo_goal", "just_vibing"),
+                    getattr(contact, "my_impression", ""),
+                    getattr(contact, "strategy_note", ""),
                     contact.created_at.isoformat(sep=" "),
                     contact.updated_at.isoformat(sep=" "),
                 ),
@@ -257,14 +288,17 @@ class DatabaseManager:
         limit: int = 50,
         offset: int = 0,
     ) -> List[Message]:
-        """Get messages for a contact with pagination (oldest first)."""
+        """Get the latest messages for a contact in chronological order."""
         with self._connection() as conn:
             rows = conn.execute(
                 """
-                SELECT * FROM messages
-                WHERE contact_id = ?
-                ORDER BY timestamp ASC
-                LIMIT ? OFFSET ?
+                SELECT * FROM (
+                    SELECT * FROM messages
+                    WHERE contact_id = ?
+                    ORDER BY timestamp DESC, id DESC
+                    LIMIT ? OFFSET ?
+                ) sub
+                ORDER BY timestamp ASC, id ASC
                 """,
                 (contact_id, limit, offset),
             ).fetchall()

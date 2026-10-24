@@ -65,6 +65,9 @@ class Contact(BaseModel):
     inside_jokes: List[str] = Field(default_factory=list, description="Shared humor references")
     style_notes: str = Field(default="", description="How they text — tone, emoji usage, etc.")
     notes: str = Field(default="", description="Free-form notes about this person")
+    convo_goal: str = Field(default="just_vibing", description="Tactical conversational goal")
+    my_impression: str = Field(default="", description="Your impression of this person")
+    strategy_note: str = Field(default="", description="Specific directive for next AI reply")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -86,7 +89,7 @@ class ChatMessage(BaseModel):
     content: str = Field(..., description="Message body")
     timestamp: datetime = Field(..., description="When the message was sent")
     is_user: bool = Field(default=False, description="True if this message is from the user")
-    reactions: Optional[List[str]] = Field(default=None, description="Emoji reactions on this message")
+    reactions: Optional[List[Any]] = Field(default=None, description="Emoji reactions on this message")
     media_type: Optional[str] = Field(default=None, description="'image', 'video', 'audio', or None")
 
 
@@ -122,6 +125,9 @@ class ContactCreate(BaseModel):
     inside_jokes: List[str] = Field(default_factory=list)
     style_notes: str = Field(default="")
     notes: str = Field(default="")
+    convo_goal: Optional[str] = "just_vibing"
+    my_impression: Optional[str] = ""
+    strategy_note: Optional[str] = ""
 
 
 class ContactUpdate(BaseModel):
@@ -133,6 +139,9 @@ class ContactUpdate(BaseModel):
     inside_jokes: Optional[List[str]] = None
     style_notes: Optional[str] = None
     notes: Optional[str] = None
+    convo_goal: Optional[str] = None
+    my_impression: Optional[str] = None
+    strategy_note: Optional[str] = None
 
 
 class IngestRequest(BaseModel):

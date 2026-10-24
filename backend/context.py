@@ -85,6 +85,8 @@ class ContextAssembler:
                 for m in recent_msgs[-5:]
                 if m.content and m.content.strip()
             ]
+            if recent_query_lines and recent_query_lines[-1].strip() == incoming_message.strip():
+                recent_query_lines = recent_query_lines[:-1]
             memory_query = "\n".join(recent_query_lines + [incoming_message]).strip()
             results = self.memory.search(
                 query=memory_query or incoming_message,
@@ -318,7 +320,7 @@ class ContextAssembler:
             logger.warning("Lyric callback resolver failed (non-fatal): %s", exc)
             return []
 
-        if not grounded or confidence < 0.74 or not continuation:
+        if confidence < 0.74 or not continuation:
             return []
 
         continuation = self._limit_words(continuation, 10)
@@ -386,10 +388,11 @@ class ContextAssembler:
         your_response: str,
         ai_draft: Optional[str] = None,
         was_edited: bool = False,
+        save_to_db: bool = False,
     ) -> None:
         """
         Persist a complete exchange (their message + your reply) to
-        both the relational DB and the vector store.
+        vector store, and optionally to the relational DB if requested.
 
         Args:
             contact_id:    The contact involved.
@@ -397,28 +400,30 @@ class ContextAssembler:
             your_response: What you actually sent.
             ai_draft:      The original AI draft (if any).
             was_edited:    Whether you modified the AI draft.
+            save_to_db:    Whether to insert messages into SQLite (default: False).
         """
         now = datetime.utcnow()
 
-        # Save their message to DB
-        their_msg = Message(
-            contact_id=contact_id,
-            role="them",
-            content=their_message,
-            timestamp=now,
-        )
-        self.db.add_message(their_msg)
+        if save_to_db:
+            # Save their message to DB
+            their_msg = Message(
+                contact_id=contact_id,
+                role="them",
+                content=their_message,
+                timestamp=now,
+            )
+            self.db.add_message(their_msg)
 
-        # Save your response to DB
-        your_msg = Message(
-            contact_id=contact_id,
-            role="you",
-            content=your_response,
-            ai_draft=ai_draft,
-            was_edited=was_edited,
-            timestamp=now,
-        )
-        self.db.add_message(your_msg)
+            # Save your response to DB
+            your_msg = Message(
+                contact_id=contact_id,
+                role="you",
+                content=your_response,
+                ai_draft=ai_draft,
+                was_edited=was_edited,
+                timestamp=now,
+            )
+            self.db.add_message(your_msg)
 
         # Add the exchange to the vector store for future retrieval
         exchange_text = f"Them: {their_message}\nYou: {your_response}"
@@ -437,7 +442,8 @@ class ContextAssembler:
             logger.warning("Failed to store exchange in vector memory (non-fatal): %s", exc)
 
         logger.info(
-            "Saved exchange for contact '%s' — edited=%s",
+            "Saved exchange for contact '%s' — edited=%s, saved_to_db=%s",
             contact_id,
             was_edited,
+            save_to_db,
         )

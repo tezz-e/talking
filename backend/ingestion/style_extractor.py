@@ -212,7 +212,11 @@ class StyleExtractor:
     # Core analysis
     # ------------------------------------------------------------------
 
-    def analyze(self, user_messages: list[ChatMessage]) -> dict:
+    def analyze(
+        self,
+        user_messages: list[ChatMessage],
+        all_messages: Optional[list[ChatMessage]] = None,
+    ) -> dict:
         """Compute comprehensive texting statistics.
 
         Parameters
@@ -222,6 +226,9 @@ class StyleExtractor:
             ``True``.  Media-only messages (``[photo]``, etc.) are included
             in counts but excluded from text-based analysis where it would
             skew results.
+        all_messages:
+            Optional full list of messages across both speakers, used to
+            accurately calculate conversational metrics like double-texting.
 
         Returns
         -------
@@ -350,10 +357,20 @@ class StyleExtractor:
 
         # ---- Double texting ----
         consecutive = 0
-        for i in range(1, len(user_messages)):
-            if user_messages[i].is_user and (i == 0 or user_messages[i - 1].is_user):
-                consecutive += 1
-        double_texting_rate = round(consecutive / total * 100, 1) if total > 1 else 0.0
+        total_user_in_thread = 0
+        if all_messages:
+            for i in range(1, len(all_messages)):
+                if all_messages[i].is_user:
+                    total_user_in_thread += 1
+                    if all_messages[i - 1].is_user:
+                        consecutive += 1
+            double_texting_rate = (
+                round(consecutive / total_user_in_thread * 100, 1)
+                if total_user_in_thread > 0
+                else 0.0
+            )
+        else:
+            double_texting_rate = 0.0
 
         # ---- Laughing style ----
         laugh_counter: Counter = Counter()
@@ -580,6 +597,7 @@ class StyleExtractor:
         self,
         user_messages: list[ChatMessage],
         output_path: str,
+        all_messages: Optional[list[ChatMessage]] = None,
     ) -> dict:
         """Analyse messages, generate STYLE.md, and write to disk.
 
@@ -590,13 +608,15 @@ class StyleExtractor:
         output_path:
             File path to write the ``STYLE.md`` document to.  Parent
             directories are created automatically.
+        all_messages:
+            Optional full message list for multi-speaker metrics.
 
         Returns
         -------
         dict
             The raw statistics dict (same as :meth:`analyze`).
         """
-        stats = self.analyze(user_messages)
+        stats = self.analyze(user_messages, all_messages=all_messages)
         md = self.generate_style_md(stats)
 
         out = Path(output_path).resolve()

@@ -297,7 +297,7 @@ class WhatsAppParser:
                 ChatMessage(
                     sender=sender.strip(),
                     content=content,
-                    timestamp=int(dt.timestamp() * 1000),  # epoch ms
+                    timestamp=dt,
                     is_user=is_user,
                     reactions=None,
                     media_type=media_type,

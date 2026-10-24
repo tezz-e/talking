@@ -3,6 +3,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -21,6 +22,14 @@ from .ingestion.whatsapp import WhatsAppParser
 from .ingestion.style_extractor import StyleExtractor
 
 app = FastAPI(title="Talking API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Initialize core components
 BASE_DIR = Path(__file__).parent.parent
@@ -61,9 +70,16 @@ def delete_contact(contact_id: str):
 
 @app.get("/api/history/{contact_id}")
 def get_history(contact_id: str, limit: int = 50):
-    messages = db.get_messages(contact_id, limit=limit)
-    # Reverse so oldest is first for the UI
-    return messages[::-1]
+    return db.get_messages(contact_id, limit=limit)
+
+# ─── Stats ───
+
+@app.get("/api/stats")
+def get_stats():
+    return {
+        "total_memories": memory.get_collection_count(),
+        "total_contacts": len(db.list_contacts()),
+    }
 
 # ─── Messaging ───
 
@@ -175,7 +191,8 @@ def handle_approve(req: ApproveRequest):
         their_message=their_msg,
         your_response=req.final_message,
         ai_draft=req.original_draft,
-        was_edited=was_edited
+        was_edited=was_edited,
+        save_to_db=False,
     )
     return {"status": "approved"}
 
@@ -245,7 +262,7 @@ def run_ingestion(source: str, contact_name: str, path: str):
             sample = random.sample(user_msgs, min(500, len(user_msgs)))
             print(f"[INGEST] Extracting style from {len(sample)} sampled messages (of {len(user_msgs)} total)...")
             extractor = StyleExtractor(llm)
-            extractor.extract_and_save(sample, str(DATA_DIR / "STYLE.md"))
+            extractor.extract_and_save(sample, str(DATA_DIR / "STYLE.md"), all_messages=messages)
             print("[INGEST] Style extraction complete.")
             
         print("[INGEST] Starting semantic memory embedding...")
@@ -266,7 +283,7 @@ def run_ingestion(source: str, contact_name: str, path: str):
             
             contact = next((c for c in existing_contacts if c.name == true_name), None)
             if not contact:
-                contact = Contact(**ContactCreate(name=true_name).dict())
+                contact = Contact(**ContactCreate(name=true_name).model_dump())
                 db.add_contact(contact)
                 existing_contacts.append(contact)
                 

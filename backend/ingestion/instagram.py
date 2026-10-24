@@ -30,6 +30,7 @@ import json
 import logging
 import sys
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -247,7 +248,7 @@ class InstagramParser:
         return ChatMessage(
             sender=sender,
             content=content,
-            timestamp=timestamp_ms,
+            timestamp=datetime.utcfromtimestamp(timestamp_ms / 1000.0),
             is_user=is_user,
             reactions=reactions,
             media_type=media_type,

@@ -130,6 +130,11 @@ const api = {
 
   getStyle() {
     return this._fetch('/api/style');
+  },
+
+  // ── Stats ──
+  getStats() {
+    return this._fetch('/api/stats');
   }
 };
 
@@ -552,12 +557,11 @@ async function handleSend() {
     if (result && result.draft) {
       showDraft(result.draft, result.confidence ?? 0.85);
 
-      // Update memory count if returned
+      // Update contextual memory count if returned
       if (result.retrieved_memories !== undefined) {
         const count = Array.isArray(result.retrieved_memories)
           ? result.retrieved_memories.length
           : result.retrieved_memories;
-        dom.memoryCount.textContent = count;
         dom.aiMemoryCount.textContent = count;
       }
     } else {
@@ -675,6 +679,7 @@ async function handleApprove() {
   // Save to backend
   try {
     await api.approve(state.currentContact.id, state.currentDraftRaw, finalMessage);
+    updateStats();
   } catch (err) {
     console.error('Approve save error:', err);
     // Non-blocking — message already copied
@@ -868,6 +873,14 @@ async function handleStartIngest() {
       if (statusData.status === 'completed') {
         isComplete = true;
         showToast('Ingestion complete!', 'success', 5000);
+        updateStats();
+        try {
+          const contacts = await api.getContacts();
+          state.contacts = Array.isArray(contacts) ? contacts : (contacts?.contacts || []);
+          renderContacts(state.contacts);
+        } catch {
+          // ignore contact refresh error
+        }
       } else if (statusData.status === 'error') {
         isComplete = true;
         throw new Error(statusData.message);
@@ -1023,8 +1036,23 @@ function bindEvents() {
 // Initialization
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Refresh global memory and system statistics.
+ */
+async function updateStats() {
+  try {
+    const stats = await api.getStats();
+    if (stats && typeof stats.total_memories === 'number') {
+      dom.memoryCount.textContent = stats.total_memories;
+    }
+  } catch (err) {
+    console.warn('Could not fetch stats:', err.message);
+  }
+}
+
 async function init() {
   bindEvents();
+  updateStats();
 
   // Load contacts
   try {

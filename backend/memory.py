@@ -361,20 +361,41 @@ class MemoryStore:
         Returns:
             List of dicts: {text, metadata, distance}.
         """
-        kwargs: dict = {
-            "query_texts": [query],
-            "n_results": min(n_results, self._collection.count() or 1),
-        }
-
-        if contact_id:
-            kwargs["where"] = {"contact_id": contact_id}
-
         # Guard against empty collection
         if self._collection.count() == 0:
             return []
 
         if self._using_chroma:
-            results = self._collection.query(**kwargs)
+            target_n = n_results
+            if contact_id:
+                kwargs["where"] = {"contact_id": contact_id}
+                try:
+                    matching_items = self._collection.get(where={"contact_id": contact_id})
+                    matching_count = len(matching_items.get("ids", [])) if matching_items else 0
+                    if matching_count == 0:
+                        return []
+                    target_n = min(n_results, matching_count)
+                except Exception as e:
+                    logger.warning("Failed counting contact chunks: %s", e)
+            else:
+                target_n = min(n_results, self._collection.count() or 1)
+
+            kwargs["n_results"] = max(1, target_n)
+
+            try:
+                results = self._collection.query(**kwargs)
+            except Exception as e:
+                logger.warning(
+                    "Chroma query failed with kwargs %s: %s; retrying with n_results=1",
+                    kwargs,
+                    e,
+                )
+                try:
+                    kwargs["n_results"] = 1
+                    results = self._collection.query(**kwargs)
+                except Exception as inner_e:
+                    logger.error("Chroma query retry failed: %s", inner_e)
+                    return []
 
             output = []
             if results and results.get("documents"):
