@@ -124,7 +124,18 @@ class ContextAssembler:
                 f"{existing_notes}\n\nKNOWN FACTS:\n{facts_text}".strip()
             )
 
-        # 5. Build the system prompt
+        # 5. Build dynamic few-shot style examples from user's actual approved outgoing texts
+        user_outgoings = self.db.get_recent_user_messages(contact_id=contact_id, n=5)
+        if len(user_outgoings) < 3:
+            global_outgoings = self.db.get_recent_user_messages(contact_id=None, n=5)
+            for g in global_outgoings:
+                if g not in user_outgoings:
+                    user_outgoings.append(g)
+                if len(user_outgoings) >= 5:
+                    break
+        few_shots = [{"role": "you", "content": text} for text in user_outgoings[:5]]
+
+        # 6. Build the system prompt
         prompt_memories = None if learned_callback_hints else retrieved_memories_text
         system_prompt = self.personality.build_system_prompt(
             contact=contact_dict,
@@ -135,6 +146,7 @@ class ContextAssembler:
             learned_callback_hints=learned_callback_hints if learned_callback_hints else None,
             lyric_hints=lyric_hints if lyric_hints else None,
             callback_hints=callback_hints if callback_hints else None,
+            few_shot_examples=few_shots if few_shots else None,
         )
 
         # 6. Format the user message

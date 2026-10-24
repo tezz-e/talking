@@ -579,9 +579,13 @@
   function init() {
     ensureFloatingPill();
 
-    // Re-check floating pill on SPA route change
+    // Re-check floating pill on SPA route change with trailing debounce to prevent layout thrashing
+    let pillDebounceTimer = null;
     const observer = new MutationObserver(() => {
-      ensureFloatingPill();
+      if (pillDebounceTimer) clearTimeout(pillDebounceTimer);
+      pillDebounceTimer = setTimeout(() => {
+        ensureFloatingPill();
+      }, 250);
     });
     observer.observe(document.body, { childList: true, subtree: true });
     console.log('[Talking Copilot] Active on', window.location.hostname);

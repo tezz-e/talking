@@ -44,11 +44,14 @@ class DatabaseManager:
         """Yield a thread-safe SQLite connection with row factory."""
         conn = sqlite3.connect(
             str(self.db_path),
+            timeout=30.0,
             check_same_thread=False,
             detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
         )
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA busy_timeout=30000;")
         conn.execute("PRAGMA foreign_keys=ON;")
         try:
             yield conn
@@ -115,6 +118,15 @@ class DatabaseManager:
 
                 CREATE INDEX IF NOT EXISTS idx_callback_overrides_contact
                     ON callback_overrides(contact_id);
+
+                CREATE INDEX IF NOT EXISTS idx_messages_contact_timestamp
+                    ON messages(contact_id, timestamp DESC, id DESC);
+
+                CREATE INDEX IF NOT EXISTS idx_messages_role
+                    ON messages(role, timestamp DESC);
+
+                CREATE INDEX IF NOT EXISTS idx_facts_contact
+                    ON facts(contact_id);
                 """
             )
 
@@ -281,6 +293,65 @@ class DatabaseManager:
             )
             message.id = cursor.lastrowid
         return message
+
+    def add_messages_batch(self, messages: list[Message]) -> list[Message]:
+        """Insert multiple messages in a single transaction for maximum write throughput."""
+        if not messages:
+            return []
+        with self._connection() as conn:
+            params = [
+                (
+                    m.contact_id,
+                    m.role,
+                    m.content,
+                    m.ai_draft,
+                    int(m.was_edited),
+                    m.timestamp.isoformat(sep=" "),
+                    json.dumps(m.metadata or {}),
+                )
+                for m in messages
+            ]
+            conn.executemany(
+                """
+                INSERT INTO messages
+                    (contact_id, role, content, ai_draft, was_edited, timestamp, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                params,
+            )
+        return messages
+
+    def get_recent_user_messages(
+        self,
+        contact_id: Optional[str] = None,
+        n: int = 5,
+    ) -> List[str]:
+        """
+        Fetch the user's latest outgoing approved messages (`role='you'`).
+        Used for dynamic few-shot style mimicry in LLM generation.
+        """
+        with self._connection() as conn:
+            if contact_id:
+                rows = conn.execute(
+                    """
+                    SELECT content FROM messages
+                    WHERE contact_id = ? AND role = 'you'
+                    ORDER BY timestamp DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (contact_id, n),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT content FROM messages
+                    WHERE role = 'you'
+                    ORDER BY timestamp DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (n,),
+                ).fetchall()
+        return [r["content"] for r in rows if r["content"].strip()]
 
     def get_messages(
         self,

@@ -111,6 +111,20 @@ class GeminiLLM:
 
         return self._retry(_call)
 
+    @staticmethod
+    def _clean_json_text(raw: str) -> str:
+        """Extract and sanitize JSON from model output, handling fences, preamble and trailing commas."""
+        import re
+        cleaned = raw.strip()
+        match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", cleaned)
+        if match:
+            cleaned = match.group(1)
+        cleaned = re.sub(r"^```(?:json)?", "", cleaned, flags=re.IGNORECASE).strip()
+        cleaned = re.sub(r"```$", "", cleaned).strip()
+        # Remove trailing commas before closing braces or brackets
+        cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
+        return cleaned
+
     def generate_variants(
         self,
         system_instruction: str,
@@ -151,10 +165,7 @@ class GeminiLLM:
 
         raw = self._retry(_call)
         try:
-            cleaned = raw.strip()
-            if cleaned.startswith("```"):
-                cleaned = re.sub(r"^```(?:json)?", "", cleaned, flags=re.IGNORECASE).strip()
-                cleaned = re.sub(r"```$", "", cleaned).strip()
+            cleaned = self._clean_json_text(raw)
             data = json.loads(cleaned)
             return {
                 "chill": str(data.get("chill", "")).strip(),
@@ -303,6 +314,32 @@ class GeminiLLM:
                 ),
             )
             return response.text.strip() if response.text else "media"
+
+        return self._retry(_call)
+
+    def transcribe_audio(self, audio_bytes: bytes, mime_type: str = "audio/ogg") -> str:
+        """
+        Transcribe an incoming voice note using Gemini's native multimodal audio understanding.
+        """
+        system_instruction = (
+            "You are an accurate audio transcription engine for casual voice notes. "
+            "Transcribe the spoken audio verbatim in its original language. "
+            "Do not add commentary, speaker labels, or preambles. Output only the transcribed text."
+        )
+
+        def _call():
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=[
+                    types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                    types.Part.from_text(text="Transcribe this voice note verbatim.")
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.0,
+                ),
+            )
+            return response.text.strip() if response.text else ""
 
         return self._retry(_call)
 

@@ -455,5 +455,76 @@ class TestMilestoneFeatures(unittest.TestCase):
         db.delete_contact(contact_id)
 
 
+class TestPerformanceAndRobustness(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db = DatabaseManager(Path(self.temp_dir.name) / "test.db")
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_clean_json_sanitizer(self):
+        """Verifies that model output with fences, preambles, and trailing commas parses robustly."""
+        from backend.llm import GeminiLLM
+        import json
+
+        # Preambles + markdown fences + trailing commas
+        raw_output = """Here are the three distinct reply options you requested:
+```json
+{
+  "chill": "all good",
+  "direct": "sounds great, let's meet at 7",
+  "banter": "only if you buy the first round 💀",
+}
+```
+Hope this helps!"""
+
+        cleaned = GeminiLLM._clean_json_text(raw_output)
+        data = json.loads(cleaned)
+        self.assertEqual(data["chill"], "all good")
+        self.assertEqual(data["direct"], "sounds great, let's meet at 7")
+        self.assertEqual(data["banter"], "only if you buy the first round 💀")
+
+    def test_db_batch_insert_and_indexes(self):
+        """Verifies single-transaction batch message insertions and index creation."""
+        from backend.models import Contact, Message
+        from datetime import datetime
+
+        contact = self.db.add_contact(Contact(name="Batch Contact"))
+        messages = [
+            Message(
+                contact_id=contact.id,
+                role="you" if i % 2 == 0 else "them",
+                content=f"Message {i}",
+                timestamp=datetime.now(),
+            )
+            for i in range(20)
+        ]
+
+        self.db.add_messages_batch(messages)
+        saved = self.db.get_messages(contact.id, limit=50)
+        self.assertEqual(len(saved), 20)
+
+        # Check indexes exist
+        with self.db._connection() as conn:
+            indexes = [r["name"] for r in conn.execute("PRAGMA index_list('messages')").fetchall()]
+            self.assertIn("idx_messages_contact_timestamp", indexes)
+
+    def test_recent_user_messages_extraction(self):
+        """Verifies extraction of user outgoing texts for dynamic few-shot style mimicry."""
+        from backend.models import Contact, Message
+        from datetime import datetime
+
+        contact = self.db.add_contact(Contact(name="Style Contact"))
+        self.db.add_message(Message(contact_id=contact.id, role="you", content="nah was too tired haha"))
+        self.db.add_message(Message(contact_id=contact.id, role="them", content="how was your day"))
+        self.db.add_message(Message(contact_id=contact.id, role="you", content="yeah should be down!"))
+
+        user_msgs = self.db.get_recent_user_messages(contact_id=contact.id, n=5)
+        self.assertEqual(len(user_msgs), 2)
+        self.assertIn("nah was too tired haha", user_msgs)
+        self.assertIn("yeah should be down!", user_msgs)
+
+
 if __name__ == "__main__":
     unittest.main()

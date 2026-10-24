@@ -41,7 +41,8 @@ class StrategyInterpreter:
                     response_mime_type="application/json",
                 ),
             )
-            data = json.loads(response.text)
+            cleaned_json = self.llm._clean_json_text(response.text)
+            data = json.loads(cleaned_json)
             
             # Ensure strategy_note is set if not explicitly cleared, 
             # because the instruction itself is often a strategy note

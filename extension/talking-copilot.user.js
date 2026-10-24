@@ -726,7 +726,13 @@
 
   function init() {
     ensureFloatingPill();
-    const observer = new MutationObserver(() => ensureFloatingPill());
+    let pillDebounceTimer = null;
+    const observer = new MutationObserver(() => {
+      if (pillDebounceTimer) clearTimeout(pillDebounceTimer);
+      pillDebounceTimer = setTimeout(() => {
+        ensureFloatingPill();
+      }, 250);
+    });
     observer.observe(document.body, { childList: true, subtree: true });
   }
 

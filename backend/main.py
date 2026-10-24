@@ -353,23 +353,42 @@ def handle_approve(req: ApproveRequest):
     )
     return {"status": "approved"}
 
-# ─── Image OCR ───
+# ─── Image OCR & Voice Transcription ───
 
 @app.post("/api/extract-text")
 async def extract_text(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image.")
     try:
+        import asyncio
         image_bytes = await file.read()
-        text = llm.extract_text_from_image(image_bytes, file.content_type)
+        text = await asyncio.to_thread(llm.extract_text_from_image, image_bytes, file.content_type)
         return {"extracted_text": text.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class TranscribeVoiceRequest(BaseModel):
+    contact_id: str | None = None
+    audio_base64: str
+    mime_type: str = "audio/ogg"
+
+@app.post("/api/whatsapp/transcribe_voice")
+def transcribe_whatsapp_voice(req: TranscribeVoiceRequest):
+    import base64
+    try:
+        raw_b64 = req.audio_base64
+        if "," in raw_b64:
+            raw_b64 = raw_b64.split(",", 1)[1]
+        audio_bytes = base64.b64decode(raw_b64)
+        transcript = llm.transcribe_audio(audio_bytes, mime_type=req.mime_type)
+        return {"status": "ok", "transcription": transcript}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 # ─── Instagram Watcher & Media Vision ───
 
 @app.post("/api/instagram/describe_media")
-async def describe_instagram_media(req: DescribeMediaRequest):
+def describe_instagram_media(req: DescribeMediaRequest):
     import base64
     contact = db.get_contact(req.contact_id)
     if not contact:
@@ -399,7 +418,7 @@ async def describe_instagram_media(req: DescribeMediaRequest):
         raise HTTPException(status_code=500, detail=str(exc))
 
 @app.post("/api/instagram/sync_history")
-async def sync_instagram_history(req: SyncHistoryRequest):
+def sync_instagram_history(req: SyncHistoryRequest):
     contact = db.get_contact(req.contact_id)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -408,7 +427,7 @@ async def sync_instagram_history(req: SyncHistoryRequest):
     recent_db_msgs = db.get_recent_messages(req.contact_id, n=30)
     recent_signatures = {(m.role, m.content.strip()) for m in recent_db_msgs}
 
-    added = 0
+    new_messages = []
     for m in req.messages:
         content = str(m.get("content", "")).strip()
         if not content:
@@ -418,16 +437,18 @@ async def sync_instagram_history(req: SyncHistoryRequest):
 
         sig = (role, content)
         if sig not in recent_signatures:
-            db.add_message(Message(
+            new_messages.append(Message(
                 contact_id=req.contact_id,
                 role=role,
                 content=content,
                 metadata={"source": "ig_sync"}
             ))
             recent_signatures.add(sig)
-            added += 1
 
-    return {"status": "synced", "count": added}
+    if new_messages:
+        db.add_messages_batch(new_messages)
+
+    return {"status": "synced", "count": len(new_messages)}
 
 # ─── Ingestion ───
 
