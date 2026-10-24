@@ -299,6 +299,190 @@ class TestPlaywrightE2E(unittest.TestCase):
         inserted_text = input_el.text_content().strip()
         self.assertEqual(inserted_text, "Yeah for sure, sounds good!")
 
+    # ── Test 7: WhatsApp Active Swipe-to-Reply Bar ────────────────────
+    def test_whatsapp_active_swipe_reply(self):
+        """
+        Tests that when a user swipes a message on WhatsApp Web,
+        the active reply bar rendered in the footer is prioritized over the chat history.
+        """
+        mock_wa_swipe_html = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>WhatsApp Web</title></head>
+        <body>
+          <div id="app">
+            <header><span dir="auto" title="Alex">Alex</span></header>
+            <div class="conversation">
+              <!-- Regular older incoming message -->
+              <div class="message-in">
+                <div class="selectable-text">Hey how are you doing?</div>
+              </div>
+            </div>
+            <footer>
+              <!-- Active swipe-to-reply bar preview -->
+              <div data-testid="quoted-message">
+                <div data-testid="quoted-mention">Alex</div>
+                <span dir="auto">Are you free Saturday for lunch?</span>
+                <button data-testid="cancel-reply">X</button>
+              </div>
+              <div role="textbox" contenteditable="true"></div>
+            </footer>
+          </div>
+        </body>
+        </html>
+        """
+        self.page.set_content(mock_wa_swipe_html)
+        content_js_path = Path(__file__).parent.parent / "extension" / "content.js"
+        js_code = content_js_path.read_text(encoding="utf-8")
+
+        result = self.page.evaluate(f"""
+        () => {{
+            window.__MOCK_PLATFORM__ = 'whatsapp';
+            {js_code}
+            return window._talkingCopilot.getLastIncomingMessage();
+        }}
+        """)
+
+        self.assertIn("Replying to Alex", result)
+        self.assertIn("Are you free Saturday for lunch?", result)
+
+    # ── Test 8: Instagram Direct Active Swipe-to-Reply Banner ──────────
+    def test_instagram_active_swipe_reply(self):
+        """
+        Tests that when a user swipes a message on Instagram Direct,
+        the active reply banner in the footer is detected and prioritized.
+        """
+        mock_ig_swipe_html = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>Instagram Direct</title></head>
+        <body>
+          <div role="main">
+            <header><h2>Alex</h2></header>
+            <div class="message-thread">
+              <div style="align-self: flex-start;">
+                <div dir="auto">Old message that should not override active reply</div>
+              </div>
+            </div>
+            <footer>
+              <div style="display: flex; flex-direction: column;">
+                <div><span>Replying to Alex</span></div>
+                <div><span>What time are you coming over?</span></div>
+              </div>
+              <div role="textbox" contenteditable="true" aria-label="Message..."></div>
+            </footer>
+          </div>
+        </body>
+        </html>
+        """
+        self.page.set_content(mock_ig_swipe_html)
+        content_js_path = Path(__file__).parent.parent / "extension" / "content.js"
+        js_code = content_js_path.read_text(encoding="utf-8")
+
+        result = self.page.evaluate(f"""
+        () => {{
+            window.__MOCK_PLATFORM__ = 'instagram';
+            {js_code}
+            return window._talkingCopilot.getLastIncomingMessage();
+        }}
+        """)
+
+        self.assertIn("Replying to Alex", result)
+        self.assertIn("What time are you coming over?", result)
+
+    # ── Test 9: WhatsApp Incoming Quoted Bubble ────────────────────────
+    def test_whatsapp_incoming_quoted_bubble(self):
+        """
+        Tests that when an incoming message bubble on WhatsApp Web quotes a previous message,
+        both the reply text and the quoted context are parsed.
+        """
+        mock_wa_quote_bubble_html = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>WhatsApp Web</title></head>
+        <body>
+          <div id="app">
+            <header><span dir="auto" title="Alex">Alex</span></header>
+            <div class="conversation">
+              <div class="message-in">
+                <!-- Quoted preview inside incoming bubble -->
+                <div data-testid="quoted-message">
+                  <span class="quoted-mention">You</span>
+                  <span>That restaurant was way too loud</span>
+                </div>
+                <!-- Actual reply text -->
+                <div class="selectable-text">Haha totally agreed, could barely hear you</div>
+              </div>
+            </div>
+            <footer>
+              <div role="textbox" contenteditable="true"></div>
+            </footer>
+          </div>
+        </body>
+        </html>
+        """
+        self.page.set_content(mock_wa_quote_bubble_html)
+        content_js_path = Path(__file__).parent.parent / "extension" / "content.js"
+        js_code = content_js_path.read_text(encoding="utf-8")
+
+        result = self.page.evaluate(f"""
+        () => {{
+            window.__MOCK_PLATFORM__ = 'whatsapp';
+            {js_code}
+            return window._talkingCopilot.getLastIncomingMessage();
+        }}
+        """)
+
+        self.assertIn("Haha totally agreed, could barely hear you", result)
+        self.assertIn("Replying to", result)
+        self.assertIn("That restaurant was way too loud", result)
+
+    # ── Test 10: Instagram Incoming Quoted Bubble ──────────────────────
+    def test_instagram_incoming_quoted_bubble(self):
+        """
+        Tests that when an incoming message bubble on Instagram Direct contains a quoted reply,
+        the copilot extracts both the response text and the quoted message preview.
+        """
+        mock_ig_quote_bubble_html = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>Instagram Direct</title></head>
+        <body>
+          <div role="main">
+            <header><h2>Alex</h2></header>
+            <div class="message-thread" style="display:flex; flex-direction:column; gap:8px;">
+              <div role="row" style="align-self: flex-start; display: flex; flex-direction: column;">
+                <!-- Quoted parent container -->
+                <div style="border-left: 2px solid grey; padding-left: 6px;" aria-label="replied to your message">
+                  Movie night at 8pm?
+                </div>
+                <!-- Reply text -->
+                <div dir="auto">Count me in! I will bring snacks</div>
+              </div>
+            </div>
+            <footer>
+              <div role="textbox" contenteditable="true"></div>
+            </footer>
+          </div>
+        </body>
+        </html>
+        """
+        self.page.set_content(mock_ig_quote_bubble_html)
+        content_js_path = Path(__file__).parent.parent / "extension" / "content.js"
+        js_code = content_js_path.read_text(encoding="utf-8")
+
+        result = self.page.evaluate(f"""
+        () => {{
+            window.__MOCK_PLATFORM__ = 'instagram';
+            {js_code}
+            return window._talkingCopilot.getLastIncomingMessage();
+        }}
+        """)
+
+        self.assertIn("Count me in! I will bring snacks", result)
+        self.assertIn("Replying to", result)
+        self.assertIn("Movie night at 8pm?", result)
+
 
 if __name__ == "__main__":
     unittest.main()

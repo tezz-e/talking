@@ -260,14 +260,102 @@
     return 'Friend';
   }
 
+  // ── Quoted & Swipe-to-Reply Detection ──────────────────────────────
+
+  function getActiveReplyBarContext() {
+    if (isWhatsApp()) {
+      // WhatsApp Web renders the active reply preview inside footer
+      const replyBar =
+        document.querySelector('footer [data-testid="quoted-message"]') ||
+        document.querySelector('footer [data-testid="quote-message-container"]') ||
+        document.querySelector('footer [aria-label*="Quoted"]') ||
+        document.querySelector('footer .quoted-mention')?.closest('div');
+
+      if (replyBar) {
+        const senderEl =
+          replyBar.querySelector('[data-testid="quoted-mention"]') ||
+          replyBar.querySelector('span[dir="auto"]');
+        const sender = senderEl ? senderEl.textContent.trim() : '';
+
+        // Extract message content from the quote preview
+        const clone = replyBar.cloneNode(true);
+        clone.querySelectorAll('button, [data-testid="cancel-reply"]').forEach((b) => b.remove());
+        let quoteText = clone.textContent.trim();
+        if (sender && quoteText.startsWith(sender)) {
+          quoteText = quoteText.slice(sender.length).trim();
+        }
+
+        if (quoteText || sender) {
+          return `[Replying to ${sender || 'message'}: "${quoteText || sender}"]`;
+        }
+      }
+    }
+
+    if (isInstagram()) {
+      // Instagram Direct renders a reply banner directly above the text input
+      const footer =
+        document.querySelector('div[role="main"] footer') ||
+        document.querySelector('footer');
+
+      if (footer) {
+        const allSpans = Array.from(footer.querySelectorAll('span, div, p'));
+        const replyHeader = allSpans.find((el) => {
+          const t = el.textContent ? el.textContent.trim() : '';
+          return t.startsWith('Replying to ') || t === 'Replying to yourself';
+        });
+
+        if (replyHeader) {
+          const container =
+            replyHeader.closest('div[style*="flex"]') ||
+            replyHeader.closest('div') ||
+            replyHeader.parentElement;
+
+          let quoteSnippet = '';
+          if (container) {
+            const texts = Array.from(container.querySelectorAll('span, div, p'))
+              .map((t) => t.textContent.trim())
+              .filter((t) => t && !t.startsWith('Replying to') && t.length > 1);
+            quoteSnippet = texts[0] || '';
+          }
+          return `[${replyHeader.textContent.trim()}${quoteSnippet ? ': "' + quoteSnippet + '"' : ''}]`;
+        }
+      }
+    }
+
+    return null;
+  }
+
   function getLastIncomingMessage() {
+    // 1. If user swiped or clicked reply to a specific message, prioritize active reply bar
+    const activeReply = getActiveReplyBarContext();
+    if (activeReply) {
+      return activeReply;
+    }
+
     if (isWhatsApp()) {
       const incomingNodes = document.querySelectorAll('div.message-in');
       if (incomingNodes.length === 0) return '';
       const last = incomingNodes[incomingNodes.length - 1];
 
+      // Check if this incoming bubble quotes a previous message
+      let quotedContext = '';
+      const quotedEl =
+        last.querySelector('[data-testid="quoted-message"]') ||
+        last.querySelector('[data-testid="quote-message-container"]') ||
+        last.querySelector('.quoted-mention');
+
+      if (quotedEl) {
+        const quoteClone = quotedEl.cloneNode(true);
+        const quotedSender = quoteClone.querySelector('.quoted-mention')?.textContent?.trim() || '';
+        const qText = quoteClone.textContent.trim();
+        quotedContext = `[Replying to ${quotedSender ? quotedSender + ': ' : ''}"${qText}"]`;
+      }
+
       const textEl = last.querySelector('.selectable-text') || last.querySelector('.copyable-text');
-      const text = textEl ? textEl.textContent.trim() : '';
+      let text = textEl ? textEl.textContent.trim() : '';
+      if (quotedEl && text.includes(quotedEl.textContent.trim())) {
+        text = text.replace(quotedEl.textContent.trim(), '').trim();
+      }
 
       // Media checks
       const img = last.querySelector('img[src]');
@@ -276,16 +364,20 @@
       const isVideo = last.querySelector('video') || last.querySelector('[data-testid="video-thumb"]');
       const isPhoto = img && !isSticker && (img.width > 50 || img.naturalWidth > 50 || last.querySelector('[data-testid="image-thumb"]'));
 
-      if (isSticker) return text ? `[Sticker] ${text}` : '[Sticker]';
-      if (isVoice) return text ? `[Voice Message] ${text}` : '[Voice Message]';
-      if (isVideo) return text ? `[Video: ${text}]` : (text || '[Sent a video]');
-      if (isPhoto) {
+      let mainBody = text;
+      if (isSticker) mainBody = text ? `[Sticker] ${text}` : '[Sticker]';
+      else if (isVoice) mainBody = text ? `[Voice Message] ${text}` : '[Voice Message]';
+      else if (isVideo) mainBody = text ? `[Video: ${text}]` : (text || '[Sent a video]');
+      else if (isPhoto) {
         const alt = img.getAttribute('alt') || '';
         const desc = alt && !alt.toLowerCase().includes('photo') ? `: ${alt}` : '';
-        return text ? `[Photo${desc}] ${text}` : `[Photo${desc}]`;
+        mainBody = text ? `[Photo${desc}] ${text}` : `[Photo${desc}]`;
       }
 
-      return text;
+      if (quotedContext) {
+        return mainBody ? `"${mainBody}" ${quotedContext}` : quotedContext;
+      }
+      return mainBody;
     }
 
     if (isInstagram()) {
@@ -343,6 +435,19 @@
 
         if (isOutgoing) continue;
 
+        // Check if the message bubble has a quoted reply context inside it
+        const parentRow = el.closest('div[role="row"]') || el.closest('div[style*="flex"]') || el.parentElement;
+        let bubbleQuote = '';
+        if (parentRow) {
+          const quoteEl = parentRow.querySelector('div[style*="border-left"], div[aria-label*="replied"], a[href*="/direct/t/"]');
+          if (quoteEl && quoteEl !== el && !quoteEl.contains(el)) {
+            const q = quoteEl.textContent.trim();
+            if (q && q.length > 2) {
+              bubbleQuote = `[Replying to: "${q.slice(0, 100)}"]`;
+            }
+          }
+        }
+
         const reelLink = el.closest('a[href*="/reel/"]') || el.closest('a[href*="/p/"]');
         if (reelLink) {
           const href = reelLink.href || '';
@@ -356,12 +461,14 @@
             .join(' - ');
 
           let detail = textSnippet || altText;
-          return `[Shared ${isReel ? 'Instagram Reel' : 'Post'}: ${href}${detail ? ' | ' + detail : ''}]`;
+          const reelTag = `[Shared ${isReel ? 'Instagram Reel' : 'Post'}: ${href}${detail ? ' | ' + detail : ''}]`;
+          return bubbleQuote ? `${reelTag} ${bubbleQuote}` : reelTag;
         }
 
         if (el.tagName.toLowerCase() === 'img') {
           const alt = el.getAttribute('alt') || '';
-          return alt ? `[Sent a photo: ${alt}]` : '[Sent a photo]';
+          const photoTag = alt ? `[Sent a photo: ${alt}]` : '[Sent a photo]';
+          return bubbleQuote ? `${photoTag} ${bubbleQuote}` : photoTag;
         }
 
         const text = el.innerText ? el.innerText.trim() : '';
@@ -370,14 +477,14 @@
           if (parentBubble) {
             const innerReel = parentBubble.querySelector('a[href*="/reel/"], a[href*="/p/"]');
             if (innerReel) {
-              return `[Shared Reel: ${innerReel.href}] "${text}"`;
+              return `[Shared Reel: ${innerReel.href}] "${text}"${bubbleQuote ? ' ' + bubbleQuote : ''}`;
             }
             const innerImg = parentBubble.querySelector('img');
             if (innerImg && innerImg.width > 60) {
-              return `[Photo] "${text}"`;
+              return `[Photo] "${text}"${bubbleQuote ? ' ' + bubbleQuote : ''}`;
             }
           }
-          return text;
+          return bubbleQuote ? `"${text}" ${bubbleQuote}` : text;
         }
       }
     }
