@@ -10,7 +10,8 @@ from pydantic import BaseModel
 
 from .models import (
     ContactCreate, ContactUpdate, GenerateRequest, GenerateResponse,
-    ApproveRequest, IngestRequest, SteerRequest, SteerResponse, DraftVariant
+    ApproveRequest, IngestRequest, SteerRequest, SteerResponse, DraftVariant,
+    Fact, FactCreate, CopilotDraftRequest, CopilotDraftResponse
 )
 from .database import DatabaseManager
 from .memory import MemoryStore
@@ -20,7 +21,9 @@ from .context import ContextAssembler
 from .strategy import StrategyInterpreter
 from .ingestion.instagram import InstagramParser
 from .ingestion.whatsapp import WhatsAppParser
+from .ingestion.telegram import TelegramParser
 from .ingestion.style_extractor import StyleExtractor
+from .ingestion.fact_miner import FactMiner
 
 app = FastAPI(title="Talking API")
 
@@ -66,6 +69,32 @@ def update_contact(contact_id: str, updates: ContactUpdate):
 def delete_contact(contact_id: str):
     if not db.delete_contact(contact_id):
         raise HTTPException(status_code=404, detail="Contact not found")
+    return {"status": "deleted"}
+
+# ─── Facts ───
+
+@app.get("/api/contacts/{contact_id}/facts", response_model=list[Fact])
+def get_contact_facts(contact_id: str):
+    return db.get_facts(contact_id)
+
+@app.post("/api/contacts/{contact_id}/facts", response_model=Fact)
+def add_contact_fact(contact_id: str, req: FactCreate):
+    contact = db.get_contact(contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    fact = Fact(
+        contact_id=contact_id,
+        category=req.category,
+        fact=req.fact,
+        source="manual",
+        confidence=req.confidence or 0.9,
+    )
+    return db.add_fact(fact)
+
+@app.delete("/api/facts/{fact_id}")
+def delete_fact(fact_id: int):
+    if not db.delete_fact(fact_id):
+        raise HTTPException(status_code=404, detail="Fact not found")
     return {"status": "deleted"}
 
 # ─── History ───
@@ -179,6 +208,40 @@ def handle_message(req: GenerateRequest):
         confidence=confidence,
         retrieved_memories=retrieved,
         variants=variants,
+    )
+
+@app.post("/api/copilot/draft", response_model=CopilotDraftResponse)
+def handle_copilot_draft(req: CopilotDraftRequest):
+    """Entry point for the in-page browser copilot. Automatically links or creates contact."""
+    contact_name = req.contact_name.strip()
+    if not contact_name:
+        contact_name = "Friend"
+
+    contacts = db.list_contacts()
+    contact = next(
+        (c for c in contacts if c.name.strip().lower() == contact_name.lower()),
+        None
+    )
+    if not contact:
+        from .models import Contact
+        contact = db.add_contact(Contact(name=contact_name))
+
+    gen_req = GenerateRequest(
+        contact_id=contact.id,
+        incoming_message=req.incoming_message,
+        mood=req.mood,
+        pro_mode=req.pro_mode,
+        steering_directive=req.steering_directive,
+    )
+    gen_res = handle_message(gen_req)
+
+    return CopilotDraftResponse(
+        contact_id=contact.id,
+        contact_name=contact.name,
+        draft=gen_res.draft,
+        variants=gen_res.variants,
+        confidence=gen_res.confidence,
+        retrieved_memories=gen_res.retrieved_memories,
     )
 
 @app.post("/api/regenerate", response_model=GenerateResponse)
@@ -337,6 +400,12 @@ def run_ingestion(source: str, contact_name: str, path: str):
                 conversations = {them_name: msgs}
             else:
                 conversations = parser.parse_folder(path)
+        elif source == 'telegram':
+            parser = TelegramParser(contact_name)
+            if os.path.isfile(path):
+                conversations = parser.parse_file(path)
+            else:
+                conversations = parser.parse_folder(path)
         
         for msgs in conversations.values():
             messages.extend(msgs)
@@ -392,6 +461,20 @@ def run_ingestion(source: str, contact_name: str, path: str):
                     "timestamp": batch[-1].timestamp.isoformat(sep=" "),
                     "is_user": batch[-1].is_user
                 })
+
+            # Mine factual knowledge about contact from chat turns
+            try:
+                miner = FactMiner(llm)
+                mined = miner.mine_facts(msgs, contact.id, contact_name=true_name)
+                existing_facts = {f.fact.lower().strip() for f in db.get_facts(contact.id)}
+                for f in mined:
+                    if f.fact.lower().strip() not in existing_facts and f.confidence >= 0.7:
+                        db.add_fact(f)
+                        existing_facts.add(f.fact.lower().strip())
+                if mined:
+                    print(f"[INGEST] Mined {len(mined)} facts for {true_name}")
+            except Exception as exc:
+                print(f"[INGEST] Fact mining notice for {true_name}: {exc}")
         
         # Embed all chunks with live progress updates (60% → 95%)
         def _progress(done, total):

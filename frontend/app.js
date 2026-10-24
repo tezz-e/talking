@@ -18,6 +18,7 @@ const state = {
   currentConfidence: null,
   currentVariants: [],
   currentMood: 'default',
+  facts: [],
   proMode: false,
   isGenerating: false,
   isEditing: false,
@@ -67,6 +68,24 @@ const api = {
 
   deleteContact(id) {
     return this._fetch(`/api/contacts/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // ── Facts ──
+  getFacts(contactId) {
+    return this._fetch(`/api/contacts/${contactId}/facts`);
+  },
+
+  addFact(contactId, data) {
+    return this._fetch(`/api/contacts/${contactId}/facts`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  deleteFact(factId) {
+    return this._fetch(`/api/facts/${factId}`, {
       method: 'DELETE'
     });
   },
@@ -197,6 +216,13 @@ const dom = {
   contactInterests:    $('#contactInterests'),
   contactJokes:        $('#contactJokes'),
   contactNotes:        $('#contactNotes'),
+  contactFactCount:    $('#contactFactCount'),
+  contactFactList:     $('#contactFactList'),
+  addFactToggleBtn:    $('#addFactToggleBtn'),
+  newFactRow:          $('#newFactRow'),
+  newFactCategory:     $('#newFactCategory'),
+  newFactInput:        $('#newFactInput'),
+  saveNewFactBtn:      $('#saveNewFactBtn'),
   saveContactBtn:      $('#saveContactBtn'),
 
   // Mood
@@ -499,6 +525,8 @@ function renderContactProfile(contact) {
     dom.contactInterests.value = '';
     dom.contactJokes.value = '';
     dom.contactNotes.value = '';
+    renderFacts([]);
+    if (dom.newFactRow) dom.newFactRow.classList.add('hidden');
     return;
   }
 
@@ -511,6 +539,100 @@ function renderContactProfile(contact) {
   dom.contactInterests.value = contact.their_interests ? contact.their_interests.join(', ') : '';
   dom.contactJokes.value = contact.inside_jokes ? contact.inside_jokes.join(', ') : '';
   dom.contactNotes.value = contact.notes || '';
+
+  // Load and render facts for this contact
+  loadAndRenderFacts(contact.id);
+}
+
+/**
+ * Render list of facts into the facts inspector.
+ */
+function renderFacts(facts) {
+  state.facts = facts || [];
+  if (dom.contactFactCount) {
+    dom.contactFactCount.textContent = state.facts.length;
+  }
+  if (!dom.contactFactList) return;
+
+  if (state.facts.length === 0) {
+    dom.contactFactList.innerHTML = '<div class="fact-empty-hint">No facts recorded yet.</div>';
+    return;
+  }
+
+  dom.contactFactList.innerHTML = '';
+  state.facts.forEach((f) => {
+    const item = document.createElement('div');
+    item.className = 'fact-item';
+    const cat = f.category || 'preference';
+    item.innerHTML = `
+      <span class="fact-cat-badge fact-cat-${escapeHtml(cat)}">${escapeHtml(cat)}</span>
+      <span class="fact-text">${escapeHtml(f.fact)}</span>
+      <button class="fact-delete-btn" title="Delete fact" data-id="${f.id}">✕</button>
+    `;
+    const delBtn = item.querySelector('.fact-delete-btn');
+    delBtn.addEventListener('click', () => handleDeleteFact(f.id));
+    dom.contactFactList.appendChild(item);
+  });
+}
+
+/**
+ * Load facts from API for active contact.
+ */
+async function loadAndRenderFacts(contactId) {
+  if (!contactId) {
+    renderFacts([]);
+    return;
+  }
+  try {
+    const facts = await api.getFacts(contactId);
+    renderFacts(Array.isArray(facts) ? facts : []);
+  } catch (err) {
+    console.error('Failed to load facts:', err);
+    renderFacts([]);
+  }
+}
+
+/**
+ * Handle adding a new fact.
+ */
+async function handleAddFact() {
+  if (!state.currentContact || !state.currentContact.id) {
+    showToast('Select a contact first.', 'warning');
+    return;
+  }
+  const factText = dom.newFactInput.value.trim();
+  if (!factText) return;
+
+  const category = dom.newFactCategory.value;
+  try {
+    const created = await api.addFact(state.currentContact.id, {
+      category,
+      fact: factText,
+      confidence: 0.95
+    });
+    state.facts.unshift(created);
+    renderFacts(state.facts);
+    dom.newFactInput.value = '';
+    showToast('Fact added!', 'success');
+  } catch (err) {
+    console.error('Add fact error:', err);
+    showToast(`Failed to add fact: ${err.message}`, 'error');
+  }
+}
+
+/**
+ * Handle deleting a fact.
+ */
+async function handleDeleteFact(factId) {
+  try {
+    await api.deleteFact(factId);
+    state.facts = state.facts.filter((f) => f.id !== factId);
+    renderFacts(state.facts);
+    showToast('Fact removed.', 'info');
+  } catch (err) {
+    console.error('Delete fact error:', err);
+    showToast(`Failed to delete fact: ${err.message}`, 'error');
+  }
 }
 
 /**
@@ -1103,6 +1225,27 @@ function bindEvents() {
   // Contact
   dom.contactSelector.addEventListener('change', handleContactChange);
   dom.saveContactBtn.addEventListener('click', handleSaveContact);
+
+  // Facts Inspector
+  if (dom.addFactToggleBtn && dom.newFactRow) {
+    dom.addFactToggleBtn.addEventListener('click', () => {
+      dom.newFactRow.classList.toggle('hidden');
+      if (!dom.newFactRow.classList.contains('hidden')) {
+        dom.newFactInput.focus();
+      }
+    });
+  }
+  if (dom.saveNewFactBtn) {
+    dom.saveNewFactBtn.addEventListener('click', handleAddFact);
+  }
+  if (dom.newFactInput) {
+    dom.newFactInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddFact();
+      }
+    });
+  }
 
   // Mood
   dom.moodSelector.addEventListener('click', handleMoodSelect);

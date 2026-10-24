@@ -200,6 +200,29 @@
             <textarea class="form-textarea" id="contactNotes" placeholder="Anything else to remember..." rows="2"></textarea>
           </div>
 
+          <!-- Known Facts Inspector -->
+          <div class="form-group facts-section" style="margin-top: 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <label class="form-label" style="margin-bottom:0;">Known Facts (<span id="contactFactCount">0</span>)</label>
+              <button class="btn btn-secondary btn-xs" id="addFactToggleBtn" type="button" style="padding: 2px 8px; font-size: 11px;">+ Add Fact</button>
+            </div>
+            <div id="contactFactList" class="fact-list">
+              <div class="fact-empty-hint">No facts recorded yet.</div>
+            </div>
+            <div id="newFactRow" class="new-fact-row hidden">
+              <select id="newFactCategory" class="form-select fact-cat-select">
+                <option value="preference">Preference</option>
+                <option value="work">Work</option>
+                <option value="life_event">Life Event</option>
+                <option value="pet">Pet</option>
+                <option value="relationship">Relationship</option>
+                <option value="opinion">Opinion</option>
+              </select>
+              <input type="text" id="newFactInput" class="form-input fact-text-input" placeholder="e.g. Prefers matcha over coffee" />
+              <button class="btn btn-primary btn-xs" id="saveNewFactBtn" type="button">Save</button>
+            </div>
+          </div>
+
           <button class="btn btn-primary" id="saveContactBtn" style="width:100%; margin-top:8px;">
             💾 Save Contact
           </button>
@@ -311,6 +334,10 @@
             <div class="ingest-option" data-source="whatsapp">
               <span class="icon">💬</span>
               <span class="label">WhatsApp</span>
+            </div>
+            <div class="ingest-option" data-source="telegram">
+              <span class="icon">✈️</span>
+              <span class="label">Telegram</span>
             </div>
           </div>
         </div>

@@ -83,6 +83,13 @@ class Fact(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class FactCreate(BaseModel):
+    """Schema for manually creating a fact."""
+    category: str = Field(default="preference", description="Category of fact")
+    fact: str = Field(..., min_length=2, description="The actual fact text")
+    confidence: Optional[float] = Field(default=0.9, ge=0.0, le=1.0)
+
+
 class ChatMessage(BaseModel):
     """A parsed message from an imported chat export (Instagram / WhatsApp)."""
     sender: str = Field(..., description="Name of the person who sent the message")
@@ -119,6 +126,25 @@ class SteerResponse(BaseModel):
 class DraftVariant(BaseModel):
     label: str = Field(..., description="Energy label: chill, direct, or banter")
     text: str = Field(..., description="Draft text for this variant")
+
+
+class CopilotDraftRequest(BaseModel):
+    """Request from the in-page copilot extension."""
+    contact_name: str = Field(..., description="Display name of the contact in chat")
+    incoming_message: str = Field(..., description="The message they sent")
+    mood: Optional[Mood] = Field(default=Mood.DEFAULT, description="Desired tone")
+    pro_mode: bool = Field(default=False, description="Enable strategic reasoning")
+    steering_directive: Optional[str] = Field(default=None, description="Optional steering directive")
+
+
+class CopilotDraftResponse(BaseModel):
+    """Draft reply returned to the in-page copilot extension."""
+    contact_id: str
+    contact_name: str
+    draft: str
+    variants: List[DraftVariant] = Field(default_factory=list)
+    confidence: float = 0.85
+    retrieved_memories: List[str] = Field(default_factory=list)
 
 
 class GenerateResponse(BaseModel):
@@ -166,6 +192,6 @@ class ContactUpdate(BaseModel):
 
 class IngestRequest(BaseModel):
     """Request to ingest a chat export."""
-    source: str = Field(..., pattern=r"^(instagram|whatsapp)$", description="'instagram' or 'whatsapp'")
+    source: str = Field(..., pattern=r"^(instagram|whatsapp|telegram)$", description="'instagram', 'whatsapp', or 'telegram'")
     contact_name: str = Field(..., description="Your display name in the export")
     path: Optional[str] = Field(default=None, description="Path to the export file/folder")

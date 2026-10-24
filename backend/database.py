@@ -354,6 +354,12 @@ class DatabaseManager:
             ).fetchall()
         return [self._row_to_fact(r) for r in rows]
 
+    def delete_fact(self, fact_id: int) -> bool:
+        """Delete a fact by its database ID. Returns True if deleted."""
+        with self._connection() as conn:
+            cursor = conn.execute("DELETE FROM facts WHERE id = ?", (fact_id,))
+            return cursor.rowcount > 0
+
     def search_facts(
         self,
         contact_id: Optional[str] = None,

@@ -32,12 +32,21 @@ Talking/
 │   └── ingestion/
 │       ├── instagram.py        # InstagramParser: parses Meta JSON export files & handles Latin-1 mojibake
 │       ├── whatsapp.py         # WhatsAppParser: parses WhatsApp exported .txt logs
+│       ├── telegram.py         # TelegramParser: parses Telegram Desktop JSON exports (result.json)
+│       ├── fact_miner.py       # FactMiner: extracts biographical facts & preferences from chat turns
 │       ├── pii_scrubber.py     # PIIScrubber: masks credit cards, phone numbers, passwords, auth tokens
 │       └── style_extractor.py  # StyleExtractor: computes empirical style metrics & generates STYLE.md
 ├── data/
 │   ├── SOUL.template.md        # Tracked template for core persona & background context
 │   ├── STYLE.template.md       # Tracked template for texting style fingerprint
 │   └── db/                     # Local SQLite (talking.db) and ChromaDB storage (git-ignored)
+├── extension/
+│   ├── manifest.json           # Chrome MV3 Extension manifest for WhatsApp Web & Instagram Direct
+│   ├── content.js              # DOM scraper, Alt+D trigger, in-page draft injector & approval reporter
+│   ├── content.css             # Glassmorphic overlay styling for floating pill & draft modal
+│   ├── popup.html / popup.js   # Extension toolbar status popup & shortcut reference
+│   ├── talking-copilot.user.js # Standalone Tampermonkey/Violentmonkey userscript (zero install friction)
+│   └── README.md               # Copilot installation guide (Userscript vs Chrome Extension)
 ├── frontend/
 │   ├── app.js                  # Frontend client state machine, API calls, event handlers
 │   ├── index.html              # Glassmorphic dashboard UI
@@ -54,15 +63,16 @@ Talking/
 ## 3. Core Data Flows
 
 ### A. Chat Ingestion Pipeline
-1. User provides exported WhatsApp `.txt` or Instagram `.json` files.
+1. User provides exported WhatsApp `.txt`, Instagram `.json`, or Telegram Desktop `result.json` files.
 2. Parsers normalize messages into standard `ChatMessage(sender, content, timestamp: datetime, is_user, reactions, media_type)`.
 3. **PII Masking:** `PIIScrubber` scans text and masks credit/debit cards (Luhn-validated), phone numbers, passwords, auth tokens, and government IDs with safe semantic placeholders.
 4. Latin-1 mojibake in Instagram exports is decoded back to UTF-8.
-5. `StyleExtractor` samples user messages and evaluates cadence over the entire message sequence to calculate:
+5. **Biographical Fact Mining:** `FactMiner` parses conversational transcripts to extract persistent biographical facts and preferences about contacts and saves high-confidence facts to SQLite.
+6. `StyleExtractor` samples user messages and evaluates cadence over the entire message sequence to calculate:
    - Lowercase rate, punctuation absence rate, emoji frequency, laughing markers (`haha`, `lol`, `lmao`).
    - Double-texting percentage over full conversation threads.
    - Outputs structured markdown to `data/STYLE.md`.
-6. Conversations are partitioned into 50-message chronological chunks and embedded into ChromaDB via `MemoryStore.add_messages()`.
+7. Conversations are partitioned into 50-message chronological chunks and embedded into ChromaDB via `MemoryStore.add_messages()`.
 
 ### B. Message Draft Generation Pipeline
 1. An incoming message arrives at `/api/message` (or `/api/regenerate`).
@@ -149,7 +159,16 @@ Talking/
 
 ---
 
-## 6. Privacy & Git Boundaries
+## 6. In-Page Chat Copilot (WhatsApp Web & Instagram Direct)
+
+* **Architecture:** Injects into WhatsApp Web and Instagram Direct as either a standalone userscript (`extension/talking-copilot.user.js` via Tampermonkey/Violentmonkey) or a Chrome MV3 Extension (`extension/manifest.json`).
+* **Trigger:** Pressing `Alt+D` or clicking the floating `⚡ Draft` pill detects the current chat header and latest incoming message turn.
+* **Backend Endpoint:** Calls `POST /api/copilot/draft`, which automatically gets or creates the contact in SQLite, runs RAG context assembly, and returns 3 calibrated energy drafts (`🧊 Chill`, `🎯 Direct`, `🔥 Banter`).
+* **Insertion & Learning:** Clicking `Insert (Enter)` inserts the chosen reply directly into the site's rich-text input (`document.execCommand('insertText')`) and sends `POST /api/approve` back to Talking so the system continuously learns the user's conversational voice.
+
+---
+
+## 7. Privacy & Git Boundaries
 
 Under no circumstances should personal conversation records or private credentials be tracked in git:
 - Strictly excluded: `.env`, `data/db/`, `data/exports/`, `data/ig_session/`.

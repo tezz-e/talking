@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Talking Copilot",
+  "version": "1.0.0",
+  "description": "In-page AI texting copilot for WhatsApp Web & Instagram Direct powered by local Talking autopilot.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "https://web.whatsapp.com/*",
+    "https://www.instagram.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Talking Copilot"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://web.whatsapp.com/*",
+        "https://www.instagram.com/direct/*"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_end"
+    }
+  ]
+}

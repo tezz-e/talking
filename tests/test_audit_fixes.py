@@ -13,6 +13,7 @@ Unit tests validating bug fixes identified during the codebase audit:
 import unittest
 import tempfile
 import shutil
+import json
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -257,6 +258,201 @@ class TestContextAndPersonality(unittest.TestCase):
         self.assertEqual(len(res.variants), 3)
         self.assertEqual(res.variants[0].label, "chill")
         self.assertEqual(res.variants[0].text, "bet")
+
+class TestMilestoneFeatures(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.db_path = Path(self.temp_dir) / "test.db"
+        self.db = DatabaseManager(self.db_path)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_facts_crud_and_deletion(self):
+        from backend.models import Fact, FactCreate
+
+        contact = self.db.add_contact(Contact(name="Elena"))
+        fact1 = Fact(
+            contact_id=contact.id,
+            category="preference",
+            fact="Prefers oat milk lattes",
+            confidence=0.9,
+        )
+        saved = self.db.add_fact(fact1)
+        self.assertGreater(saved.id, 0)
+        self.assertEqual(saved.fact, "Prefers oat milk lattes")
+
+        fact2 = Fact(
+            contact_id=contact.id,
+            category="work",
+            fact="Senior Designer at Acme",
+            confidence=0.95,
+        )
+        self.db.add_fact(fact2)
+
+        facts = self.db.get_facts(contact.id)
+        self.assertEqual(len(facts), 2)
+
+        # Test deletion
+        deleted = self.db.delete_fact(saved.id)
+        self.assertTrue(deleted)
+        remaining = self.db.get_facts(contact.id)
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0].fact, "Senior Designer at Acme")
+
+        # Deleting non-existent returns False
+        self.assertFalse(self.db.delete_fact(99999))
+
+    def test_telegram_parser(self):
+        from backend.ingestion.telegram import TelegramParser
+
+        fake_export = {
+            "name": "Alex",
+            "type": "personal_chat",
+            "id": 12345,
+            "messages": [
+                {
+                    "id": 1,
+                    "type": "message",
+                    "date": "2026-03-01T10:00:00",
+                    "from": "Alex",
+                    "text": "Call me at +1 555-019-2831 tomorrow",
+                },
+                {
+                    "id": 2,
+                    "type": "message",
+                    "date": "2026-03-01T10:01:00",
+                    "from": "MyUser",
+                    "text": [
+                        "Sounds good! Check ",
+                        {"type": "link", "text": "https://example.com"},
+                        " for details",
+                    ],
+                },
+                {
+                    "id": 3,
+                    "type": "service",
+                    "date": "2026-03-01T10:02:00",
+                    "text": "Alex pinned a message",
+                },
+            ],
+        }
+
+        export_path = Path(self.temp_dir) / "result.json"
+        with open(export_path, "w", encoding="utf-8") as f:
+            json.dump(fake_export, f)
+
+        parser = TelegramParser(user_name="MyUser")
+        convs = parser.parse_file(str(export_path))
+        self.assertIn("Alex", convs)
+        msgs = convs["Alex"]
+        self.assertEqual(len(msgs), 2)  # Service message skipped
+
+        # First message from Alex, incoming, PII scrubbed
+        self.assertFalse(msgs[0].is_user)
+        self.assertEqual(msgs[0].sender, "Alex")
+        self.assertIn("[PHONE_NUMBER]", msgs[0].content)
+        self.assertNotIn("+1 555-019-2831", msgs[0].content)
+
+        # Second message from user, outgoing, entity text merged
+        self.assertTrue(msgs[1].is_user)
+        self.assertEqual(msgs[1].content, "Sounds good! Check https://example.com for details")
+
+    def test_fact_miner_parsing(self):
+        from backend.ingestion.fact_miner import FactMiner
+        from backend.models import ChatMessage
+
+        # Mock LLM that returns JSON
+        class MockLLM:
+            model = "test-model"
+            class client:
+                class models:
+                    @staticmethod
+                    def generate_content(*args, **kwargs):
+                        class Response:
+                            text = json.dumps([
+                                {"category": "preference", "fact": "Loves hiking in nature", "confidence": 0.95},
+                                {"category": "pet", "fact": "Has a golden retriever named Sam", "confidence": 0.9},
+                            ])
+                        return Response()
+
+        miner = FactMiner(MockLLM())
+        msgs = [
+            ChatMessage(sender="Alice", content="I really love hiking in nature every weekend", timestamp=datetime.utcnow(), is_user=False),
+            ChatMessage(sender="Me", content="nice do you have any pets?", timestamp=datetime.utcnow(), is_user=True),
+            ChatMessage(sender="Alice", content="yes a golden retriever named Sam!", timestamp=datetime.utcnow(), is_user=False),
+            ChatMessage(sender="Me", content="thats awesome", timestamp=datetime.utcnow(), is_user=True),
+        ]
+        mined = miner.mine_facts(msgs, "contact-123", "Alice")
+        self.assertEqual(len(mined), 2)
+        self.assertEqual(mined[0].category, "preference")
+        self.assertEqual(mined[0].fact, "Loves hiking in nature")
+        self.assertEqual(mined[1].category, "pet")
+        self.assertEqual(mined[1].fact, "Has a golden retriever named Sam")
+
+    def test_fact_api_endpoints(self):
+        from fastapi.testclient import TestClient
+        from backend.main import app
+
+        client = TestClient(app)
+
+        # 1. Create a test contact
+        create_res = client.post("/api/contacts", json={"name": "API Test Contact"})
+        self.assertEqual(create_res.status_code, 200)
+        contact_id = create_res.json()["id"]
+
+        # 2. Add a fact
+        add_res = client.post(
+            f"/api/contacts/{contact_id}/facts",
+            json={"category": "work", "fact": "Works remotely as a UX researcher", "confidence": 0.9},
+        )
+        self.assertEqual(add_res.status_code, 200)
+        fact_id = add_res.json()["id"]
+        self.assertEqual(add_res.json()["category"], "work")
+
+        # 3. Get facts
+        get_res = client.get(f"/api/contacts/{contact_id}/facts")
+        self.assertEqual(get_res.status_code, 200)
+        facts = get_res.json()
+        self.assertTrue(any(f["id"] == fact_id for f in facts))
+
+        # 4. Delete fact
+        del_res = client.delete(f"/api/facts/{fact_id}")
+        self.assertEqual(del_res.status_code, 200)
+        self.assertEqual(del_res.json()["status"], "deleted")
+
+        # 5. Cleanup test contact
+        client.delete(f"/api/contacts/{contact_id}")
+
+    def test_copilot_draft_endpoint(self):
+        from fastapi.testclient import TestClient
+        from backend.main import app, db
+
+        client = TestClient(app)
+
+        copilot_res = client.post(
+            "/api/copilot/draft",
+            json={
+                "contact_name": "Copilot Friend",
+                "incoming_message": "hey what are you doing tonight",
+                "mood": "chill",
+                "pro_mode": False,
+            },
+        )
+        self.assertEqual(copilot_res.status_code, 200)
+        data = copilot_res.json()
+        self.assertIn("draft", data)
+        self.assertIn("variants", data)
+        self.assertEqual(data["contact_name"], "Copilot Friend")
+        contact_id = data["contact_id"]
+
+        # Ensure contact exists in DB
+        contact = db.get_contact(contact_id)
+        self.assertIsNotNone(contact)
+        self.assertEqual(contact.name, "Copilot Friend")
+
+        # Cleanup
+        db.delete_contact(contact_id)
 
 
 if __name__ == "__main__":

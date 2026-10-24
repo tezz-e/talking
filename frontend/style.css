@@ -1440,4 +1440,106 @@ h1, h2, h3, h4 {
   box-shadow: var(--accent-glow);
 }
 
+/* ---------- Known Facts Inspector ---------- */
+.fact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 170px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-top: 4px;
+}
+
+.fact-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--bg-glass-input);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.fact-item:hover {
+  background: var(--bg-glass-hover);
+  border-color: var(--border-glass-hover);
+}
+
+.fact-cat-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.fact-cat-preference { background: rgba(16, 185, 129, 0.18); color: #34d399; }
+.fact-cat-work { background: rgba(124, 58, 237, 0.18); color: #c084fc; }
+.fact-cat-life_event { background: rgba(59, 130, 246, 0.18); color: #60a5fa; }
+.fact-cat-pet { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+.fact-cat-relationship { background: rgba(236, 72, 153, 0.18); color: #f472b6; }
+.fact-cat-opinion { background: rgba(14, 165, 233, 0.18); color: #38bdf8; }
+
+.fact-text {
+  flex: 1;
+  color: var(--text-primary);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.fact-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.fact-delete-btn:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.fact-empty-hint {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-style: italic;
+  padding: 6px 0;
+}
+
+.new-fact-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.fact-cat-select {
+  width: 32% !important;
+  font-size: 0.75rem !important;
+  padding: 4px 6px !important;
+}
+
+.fact-text-input {
+  flex: 1 !important;
+  font-size: 0.78rem !important;
+  padding: 4px 8px !important;
+}
+
+.btn-xs {
+  font-size: 0.75rem !important;
+  padding: 4px 8px !important;
+  border-radius: var(--radius-sm) !important;
+  font-weight: 500 !important;
+}
+
 .hidden { display: none !important; }

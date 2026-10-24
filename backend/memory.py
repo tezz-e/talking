@@ -366,6 +366,7 @@ class MemoryStore:
             return []
 
         if self._using_chroma:
+            kwargs: dict[str, Any] = {"query_texts": [query]}
             target_n = n_results
             if contact_id:
                 kwargs["where"] = {"contact_id": contact_id}

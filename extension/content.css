@@ -1,0 +1,323 @@
+/* ============================================================
+   TALKING COPILOT — In-Page Overlay Stylesheet
+   Dark Glassmorphism UI for WhatsApp Web & Instagram Direct
+   ============================================================ */
+
+:root {
+  --tk-bg: rgba(15, 15, 23, 0.92);
+  --tk-glass: rgba(255, 255, 255, 0.05);
+  --tk-glass-hover: rgba(255, 255, 255, 0.1);
+  --tk-border: rgba(255, 255, 255, 0.12);
+  --tk-accent: #7c3aed;
+  --tk-accent-light: #a855f7;
+  --tk-text: #f4f4f5;
+  --tk-text-muted: #a1a1aa;
+  --tk-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --tk-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Floating Launch Pill */
+#talking-copilot-pill {
+  position: fixed;
+  bottom: 84px;
+  right: 28px;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--tk-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--tk-border);
+  box-shadow: var(--tk-shadow);
+  color: var(--tk-text);
+  font-family: var(--tk-font);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#talking-copilot-pill:hover {
+  transform: translateY(-2px);
+  border-color: var(--tk-accent-light);
+  box-shadow: 0 14px 40px rgba(124, 58, 237, 0.35);
+}
+
+#talking-copilot-pill .tk-icon {
+  font-size: 15px;
+}
+
+#talking-copilot-pill .tk-kbd {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--tk-text-muted);
+}
+
+/* Floating Modal */
+#talking-copilot-modal {
+  position: fixed;
+  bottom: 120px;
+  right: 28px;
+  width: 380px;
+  max-width: calc(100vw - 40px);
+  background: var(--tk-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--tk-border);
+  box-shadow: var(--tk-shadow);
+  border-radius: 16px;
+  z-index: 1000000;
+  font-family: var(--tk-font);
+  color: var(--tk-text);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: tkFadeSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tkFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Header */
+.tk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.tk-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tk-brand {
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.tk-contact-tag {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.2);
+  color: #c084fc;
+  font-weight: 500;
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tk-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--tk-text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+
+.tk-close-btn:hover {
+  color: #fff;
+}
+
+/* Body */
+.tk-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Incoming snippet */
+.tk-incoming-snippet {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--tk-text-muted);
+  max-height: 54px;
+  overflow-y: auto;
+  line-height: 1.4;
+}
+
+.tk-incoming-snippet strong {
+  color: #e4e4e7;
+}
+
+/* Energy Variants Bar */
+.tk-variants-bar {
+  display: flex;
+  gap: 6px;
+}
+
+.tk-variant-btn {
+  flex: 1;
+  background: var(--tk-glass);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--tk-text-muted);
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.tk-variant-btn:hover {
+  background: var(--tk-glass-hover);
+  color: var(--tk-text);
+}
+
+.tk-variant-btn.tk-active {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(168, 85, 247, 0.45);
+  color: #fff;
+}
+
+/* Draft Text Box */
+.tk-draft-textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #fff;
+  font-family: var(--tk-font);
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 70px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.tk-draft-textarea:focus {
+  border-color: var(--tk-accent-light);
+}
+
+/* Status / Loading */
+.tk-loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  gap: 8px;
+  color: var(--tk-text-muted);
+  font-size: 13px;
+}
+
+.tk-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--tk-accent-light);
+  border-radius: 50%;
+  animation: tkSpin 0.7s linear infinite;
+}
+
+@keyframes tkSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Footer / Actions */
+.tk-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 8px;
+}
+
+.tk-left-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tk-pro-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--tk-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tk-pro-toggle input {
+  accent-color: var(--tk-accent);
+  cursor: pointer;
+}
+
+.tk-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tk-btn {
+  font-family: var(--tk-font);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.tk-btn-secondary {
+  background: var(--tk-glass);
+  color: var(--tk-text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tk-btn-secondary:hover {
+  background: var(--tk-glass-hover);
+  color: var(--tk-text);
+}
+
+.tk-btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4);
+}
+
+.tk-btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
