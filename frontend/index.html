@@ -64,6 +64,23 @@
           </div>
         </div>
 
+        <!-- Steering & Pro Mode Bar -->
+        <div class="steering-bar">
+          <button class="btn-pro-mode" id="proModeBtn" title="Toggle Pro Mode (deeper reasoning & strategic steering)">
+            ⚡ Pro Mode
+          </button>
+          <div class="steering-input-wrapper">
+            <span class="steering-icon">🎯</span>
+            <input
+              type="text"
+              id="steeringInput"
+              placeholder="Steer reply (e.g. tease them, make plans, keep it dry)..."
+              title="Give a strategic steering directive for this message"
+            />
+            <button class="btn-clear-steer hidden" id="clearSteerBtn" title="Clear steering directive">✕</button>
+          </div>
+        </div>
+
         <!-- Input Area -->
         <div class="glass input-area">
           <input type="file" id="imageUpload" accept="image/*" class="hidden" />
@@ -138,6 +155,27 @@
               <option value="family">Family</option>
               <option value="colleague">Colleague</option>
             </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="contactGoal">Conversation Goal</label>
+            <select class="form-select" id="contactGoal">
+              <option value="just_vibing">Just Vibing</option>
+              <option value="make_plans">Make Plans</option>
+              <option value="romantic">Romantic / Flirty</option>
+              <option value="get_to_know">Get to Know</option>
+              <option value="keep_warm">Keep Warm</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="contactImpression">Your Impression</label>
+            <input class="form-input" type="text" id="contactImpression" placeholder="e.g. smart, busy this week" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="contactStrategyNote">Strategy Directive</label>
+            <input class="form-input" type="text" id="contactStrategyNote" placeholder="e.g. tease about music taste" />
           </div>
 
           <div class="form-group">

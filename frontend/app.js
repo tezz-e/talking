@@ -17,6 +17,7 @@ const state = {
   currentDraftRaw: null,      // original draft before edits
   currentConfidence: null,
   currentMood: 'default',
+  proMode: false,
   isGenerating: false,
   isEditing: false,
   ingestSource: 'instagram',
@@ -75,25 +76,36 @@ const api = {
   },
 
   // ── Messaging ──
-  sendMessage(contactId, message, mood) {
+  sendMessage(contactId, message, mood, proMode = false, steeringDirective = null) {
     return this._fetch('/api/message', {
       method: 'POST',
       body: JSON.stringify({
         contact_id: contactId,
         incoming_message: message,
-        mood: mood
+        mood: mood,
+        pro_mode: proMode,
+        steering_directive: steeringDirective || undefined
       })
     });
   },
 
-  regenerate(contactId, message, mood) {
+  regenerate(contactId, message, mood, proMode = false, steeringDirective = null) {
     return this._fetch('/api/regenerate', {
       method: 'POST',
       body: JSON.stringify({
         contact_id: contactId,
         incoming_message: message,
-        mood: mood
+        mood: mood,
+        pro_mode: proMode,
+        steering_directive: steeringDirective || undefined
       })
+    });
+  },
+
+  steerContact(contactId, instruction) {
+    return this._fetch(`/api/contacts/${contactId}/steer`, {
+      method: 'POST',
+      body: JSON.stringify({ instruction })
     });
   },
 
@@ -152,7 +164,10 @@ const dom = {
   statusText:       $('#statusText'),
   memoryCount:      $('#memoryCount'),
 
-  // Chat
+  // Chat & Steering
+  proModeBtn:          $('#proModeBtn'),
+  steeringInput:       $('#steeringInput'),
+  clearSteerBtn:       $('#clearSteerBtn'),
   messageHistory:   $('#messageHistory'),
   emptyState:       $('#emptyState'),
   messageInput:     $('#messageInput'),
@@ -171,13 +186,16 @@ const dom = {
   draftShortcutHint:$('#draftShortcutHint'),
 
   // Contact Profile
-  contactName:      $('#contactName'),
-  contactStage:     $('#contactStage'),
-  contactHow:       $('#contactHow'),
-  contactInterests: $('#contactInterests'),
-  contactJokes:     $('#contactJokes'),
-  contactNotes:     $('#contactNotes'),
-  saveContactBtn:   $('#saveContactBtn'),
+  contactName:         $('#contactName'),
+  contactStage:        $('#contactStage'),
+  contactGoal:         $('#contactGoal'),
+  contactImpression:   $('#contactImpression'),
+  contactStrategyNote: $('#contactStrategyNote'),
+  contactHow:          $('#contactHow'),
+  contactInterests:    $('#contactInterests'),
+  contactJokes:        $('#contactJokes'),
+  contactNotes:        $('#contactNotes'),
+  saveContactBtn:      $('#saveContactBtn'),
 
   // Mood
   moodSelector:     $('#moodSelector'),
@@ -471,6 +489,9 @@ function renderContactProfile(contact) {
   if (!contact) {
     dom.contactName.value = '';
     dom.contactStage.value = 'stranger';
+    if (dom.contactGoal) dom.contactGoal.value = 'just_vibing';
+    if (dom.contactImpression) dom.contactImpression.value = '';
+    if (dom.contactStrategyNote) dom.contactStrategyNote.value = '';
     dom.contactHow.value = '';
     dom.contactInterests.value = '';
     dom.contactJokes.value = '';
@@ -480,6 +501,9 @@ function renderContactProfile(contact) {
 
   dom.contactName.value = contact.name || '';
   dom.contactStage.value = contact.relationship_stage || 'stranger';
+  if (dom.contactGoal) dom.contactGoal.value = contact.convo_goal || 'just_vibing';
+  if (dom.contactImpression) dom.contactImpression.value = contact.my_impression || '';
+  if (dom.contactStrategyNote) dom.contactStrategyNote.value = contact.strategy_note || '';
   dom.contactHow.value = contact.how_you_know || '';
   dom.contactInterests.value = contact.their_interests ? contact.their_interests.join(', ') : '';
   dom.contactJokes.value = contact.inside_jokes ? contact.inside_jokes.join(', ') : '';
@@ -551,17 +575,36 @@ async function handleSend() {
   // Start generation UI
   setLoading(true);
 
+  const steering = dom.steeringInput ? dom.steeringInput.value.trim() : '';
+
   try {
     const result = await api.sendMessage(
       state.currentContact.id,
       text,
-      state.currentMood
+      state.currentMood,
+      state.proMode,
+      steering
     );
 
     setLoading(false);
 
     if (result && result.draft) {
       showDraft(result.draft, result.confidence ?? 0.85);
+
+      // If a steering directive was passed, refresh contact profile to reflect updates
+      if (steering) {
+        try {
+          const contacts = await api.getContacts();
+          state.contacts = Array.isArray(contacts) ? contacts : (contacts?.contacts || []);
+          const updated = state.contacts.find((c) => String(c.id) === String(state.currentContact.id));
+          if (updated) {
+            state.currentContact = updated;
+            renderContactProfile(updated);
+          }
+        } catch {
+          // ignore background profile sync error
+        }
+      }
 
       // Update contextual memory count if returned
       if (result.retrieved_memories !== undefined) {
@@ -590,18 +633,22 @@ async function handleRegenerate() {
 
   setLoading(true);
 
+  const steering = dom.steeringInput ? dom.steeringInput.value.trim() : '';
+
   try {
     const result = await api.regenerate(
       state.currentContact.id,
       state.lastIncomingMessage,
-      state.currentMood
+      state.currentMood,
+      state.proMode,
+      steering
     );
 
     setLoading(false);
 
     if (result && result.draft) {
       showDraft(result.draft, result.confidence ?? 0.85);
-      showToast('Draft regenerated', 'info');
+      showToast(state.proMode ? '⚡ Pro draft regenerated' : 'Draft regenerated', 'info');
     }
   } catch (err) {
     setLoading(false);
@@ -709,6 +756,9 @@ async function handleSaveContact() {
   const contactData = {
     name: dom.contactName.value.trim(),
     relationship_stage: dom.contactStage.value,
+    convo_goal: dom.contactGoal ? dom.contactGoal.value : 'just_vibing',
+    my_impression: dom.contactImpression ? dom.contactImpression.value.trim() : '',
+    strategy_note: dom.contactStrategyNote ? dom.contactStrategyNote.value.trim() : '',
     how_you_know: dom.contactHow.value.trim(),
     their_interests: interestsVal ? interestsVal.split(',').map(s => s.trim()) : [],
     inside_jokes: jokesVal ? jokesVal.split(',').map(s => s.trim()) : [],
@@ -960,6 +1010,32 @@ async function processImageForOCR(file) {
 // ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
+  // Pro Mode toggle
+  if (dom.proModeBtn) {
+    dom.proModeBtn.addEventListener('click', () => {
+      state.proMode = !state.proMode;
+      dom.proModeBtn.classList.toggle('active', state.proMode);
+      showToast(
+        state.proMode
+          ? '⚡ Pro Mode enabled: deep reasoning & strategic steering active'
+          : 'Pro Mode disabled: standard casual texting',
+        'info'
+      );
+    });
+  }
+
+  // Steering directive clear button
+  if (dom.steeringInput && dom.clearSteerBtn) {
+    dom.steeringInput.addEventListener('input', () => {
+      dom.clearSteerBtn.classList.toggle('hidden', !dom.steeringInput.value.trim());
+    });
+    dom.clearSteerBtn.addEventListener('click', () => {
+      dom.steeringInput.value = '';
+      dom.clearSteerBtn.classList.add('hidden');
+      dom.steeringInput.focus();
+    });
+  }
+
   // Send message
   dom.sendBtn.addEventListener('click', handleSend);
 

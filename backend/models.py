@@ -100,6 +100,20 @@ class GenerateRequest(BaseModel):
     contact_id: str = Field(..., description="Which contact this is for")
     incoming_message: str = Field(..., description="The message they sent you")
     mood: Optional[Mood] = Field(default=Mood.DEFAULT, description="Desired tone")
+    pro_mode: bool = Field(default=False, description="Enable deeper strategic reasoning & candidate evaluation")
+    steering_directive: Optional[str] = Field(default=None, description="Optional steering directive for this reply")
+
+
+class SteerRequest(BaseModel):
+    """Request to dynamically steer conversation strategy for a contact."""
+    instruction: str = Field(..., description="Natural language steering directive")
+
+
+class SteerResponse(BaseModel):
+    """Result of interpreting and applying a steering directive."""
+    updated_fields: Dict[str, Any]
+    summary: str
+    contact: Contact
 
 
 class GenerateResponse(BaseModel):

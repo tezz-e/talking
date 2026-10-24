@@ -436,6 +436,97 @@ h1, h2, h3, h4 {
 }
 
 /* ---------- Input Area ---------- */
+/* ---------- Steering & Pro Mode Bar ---------- */
+.steering-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 0 16px;
+}
+
+.btn-pro-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.btn-pro-mode:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-pro-mode.active {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(236, 72, 153, 0.3));
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.35);
+}
+
+.steering-input-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  transition: all var(--transition-base);
+}
+
+.steering-input-wrapper:focus-within {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent);
+  border-style: solid;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+}
+
+.steering-icon {
+  font-size: 0.82rem;
+  opacity: 0.7;
+}
+
+.steering-input-wrapper input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+
+.steering-input-wrapper input::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.btn-clear-steer {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+
+.btn-clear-steer:hover {
+  color: var(--text-primary);
+}
+
 .input-area {
   padding: 16px;
   display: flex;

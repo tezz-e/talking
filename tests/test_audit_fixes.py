@@ -193,6 +193,32 @@ class TestContextAndPersonality(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
+    def test_pro_mode_and_steering_models(self):
+        from backend.models import GenerateRequest, SteerRequest, SteerResponse
+
+        # GenerateRequest accepts pro_mode and steering_directive
+        req = GenerateRequest(
+            contact_id="test-contact",
+            incoming_message="what u up to",
+            pro_mode=True,
+            steering_directive="steer towards getting coffee this saturday",
+        )
+        self.assertTrue(req.pro_mode)
+        self.assertEqual(req.steering_directive, "steer towards getting coffee this saturday")
+
+        # SteerRequest and SteerResponse models validate properly
+        steer_req = SteerRequest(instruction="be more playful")
+        self.assertEqual(steer_req.instruction, "be more playful")
+
+        contact = Contact(name="Sam", convo_goal="make_plans")
+        steer_res = SteerResponse(
+            updated_fields={"strategy_note": "be more playful"},
+            summary="Directive applied",
+            contact=contact,
+        )
+        self.assertEqual(steer_res.updated_fields["strategy_note"], "be more playful")
+        self.assertEqual(steer_res.contact.name, "Sam")
+
 
 if __name__ == "__main__":
     unittest.main()

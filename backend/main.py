@@ -10,13 +10,14 @@ from pydantic import BaseModel
 
 from .models import (
     ContactCreate, ContactUpdate, GenerateRequest, GenerateResponse,
-    ApproveRequest, IngestRequest
+    ApproveRequest, IngestRequest, SteerRequest, SteerResponse
 )
 from .database import DatabaseManager
 from .memory import MemoryStore
 from .llm import GeminiLLM
 from .personality import PersonalityEngine
 from .context import ContextAssembler
+from .strategy import StrategyInterpreter
 from .ingestion.instagram import InstagramParser
 from .ingestion.whatsapp import WhatsAppParser
 from .ingestion.style_extractor import StyleExtractor
@@ -40,6 +41,7 @@ llm = GeminiLLM()
 memory = MemoryStore(llm, DATA_DIR / "db" / "chroma")
 personality = PersonalityEngine(DATA_DIR)
 context_assembler = ContextAssembler(db, memory, personality, llm)
+strategy_interpreter = StrategyInterpreter(llm)
 
 # ─── Contacts ───
 
@@ -81,6 +83,21 @@ def get_stats():
         "total_contacts": len(db.list_contacts()),
     }
 
+# ─── Strategy & Steering ───
+
+@app.post("/api/contacts/{contact_id}/steer", response_model=SteerResponse)
+def steer_contact(contact_id: str, req: SteerRequest):
+    contact = db.get_contact(contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    res = strategy_interpreter.interpret(contact, req.instruction)
+    updated_contact = db.update_contact(contact_id, res.get("updated_fields", {}))
+    return SteerResponse(
+        updated_fields=res.get("updated_fields", {}),
+        summary=res.get("summary", ""),
+        contact=updated_contact or contact,
+    )
+
 # ─── Messaging ───
 
 @app.post("/api/message", response_model=GenerateResponse)
@@ -89,6 +106,12 @@ def handle_message(req: GenerateRequest):
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
     
+    # If a steering directive was provided, parse and apply it immediately
+    if req.steering_directive and req.steering_directive.strip():
+        strat_res = strategy_interpreter.interpret(contact, req.steering_directive.strip())
+        db.update_contact(req.contact_id, strat_res.get("updated_fields", {}))
+        contact = db.get_contact(req.contact_id)
+
     from .models import Message
     # Save the incoming message
     db.add_message(Message(
@@ -116,11 +139,21 @@ def handle_message(req: GenerateRequest):
         mood=req.mood.value if req.mood else "default"
     )
     
-    draft = llm.generate(sys_prompt, user_msg)
+    if req.pro_mode:
+        user_msg = (
+            f"{user_msg}\n\n"
+            "[PRO MODE ACTIVE: Analyze conversational subtext and tone deeply. "
+            "Formulate the sharpest, most authentic reply that advances the active goal.]"
+        )
+        draft = llm.generate(sys_prompt, user_msg, temperature=0.6)
+        confidence = 0.92
+    else:
+        draft = llm.generate(sys_prompt, user_msg)
+        confidence = 0.85
     
     return GenerateResponse(
         draft=draft,
-        confidence=0.85, # hardcoded for now, could implement confidence scoring later
+        confidence=confidence,
         retrieved_memories=retrieved
     )
 
@@ -129,6 +162,11 @@ def handle_regenerate(req: GenerateRequest):
     contact = db.get_contact(req.contact_id)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
+
+    if req.steering_directive and req.steering_directive.strip():
+        strat_res = strategy_interpreter.interpret(contact, req.steering_directive.strip())
+        db.update_contact(req.contact_id, strat_res.get("updated_fields", {}))
+        contact = db.get_contact(req.contact_id)
 
     direct_reply = context_assembler.get_learned_callback_reply(
         req.contact_id,
@@ -147,12 +185,20 @@ def handle_regenerate(req: GenerateRequest):
         mood=req.mood.value if req.mood else "default"
     )
     
-    # Slightly higher temperature for regeneration for variety
-    draft = llm.generate(sys_prompt, user_msg, temperature=0.9)
+    if req.pro_mode:
+        user_msg = (
+            f"{user_msg}\n\n"
+            "[PRO MODE ACTIVE: Formulate an alternative high-precision reply advancing the active goal.]"
+        )
+        draft = llm.generate(sys_prompt, user_msg, temperature=0.75)
+        confidence = 0.92
+    else:
+        draft = llm.generate(sys_prompt, user_msg, temperature=0.9)
+        confidence = 0.85
     
     return GenerateResponse(
         draft=draft,
-        confidence=0.85,
+        confidence=confidence,
         retrieved_memories=retrieved
     )
 
