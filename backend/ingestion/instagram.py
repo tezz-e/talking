@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Optional
 
 import ftfy
+from .pii_scrubber import PIIScrubber
 
 # ---------------------------------------------------------------------------
 # Robust import of ChatMessage – works regardless of working directory or
@@ -247,7 +248,7 @@ class InstagramParser:
 
         return ChatMessage(
             sender=sender,
-            content=content,
+            content=PIIScrubber.scrub(content),
             timestamp=datetime.utcfromtimestamp(timestamp_ms / 1000.0),
             is_user=is_user,
             reactions=reactions,

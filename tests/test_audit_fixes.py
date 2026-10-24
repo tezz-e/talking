@@ -219,6 +219,45 @@ class TestContextAndPersonality(unittest.TestCase):
         self.assertEqual(steer_res.updated_fields["strategy_note"], "be more playful")
         self.assertEqual(steer_res.contact.name, "Sam")
 
+    def test_pii_scrubber(self):
+        from backend.ingestion.pii_scrubber import PIIScrubber
+
+        # Credit card test
+        sample_cc = "my visa is 4111 1111 1111 1111 bro"
+        scrubbed_cc = PIIScrubber.scrub(sample_cc)
+        self.assertIn("[CREDIT_CARD]", scrubbed_cc)
+        self.assertNotIn("4111 1111 1111 1111", scrubbed_cc)
+
+        # Secrets / password test
+        sample_pwd = "wifi password: Secret123! and token AIzaSyD-1234567890abcdefghijklmnopqrstuv"
+        scrubbed_pwd = PIIScrubber.scrub(sample_pwd)
+        self.assertIn("[PASSWORD]", scrubbed_pwd)
+        self.assertIn("[API_KEY]", scrubbed_pwd)
+        self.assertNotIn("Secret123!", scrubbed_pwd)
+
+        # Phone number test
+        sample_phone = "call me at +1 555-234-5678 or 9876543210"
+        scrubbed_phone = PIIScrubber.scrub(sample_phone)
+        self.assertIn("[PHONE_NUMBER]", scrubbed_phone)
+        self.assertNotIn("555-234-5678", scrubbed_phone)
+
+    def test_draft_variants_model(self):
+        from backend.models import GenerateResponse, DraftVariant
+
+        res = GenerateResponse(
+            draft="yeah fr im down",
+            confidence=0.92,
+            retrieved_memories=["m1"],
+            variants=[
+                DraftVariant(label="chill", text="bet"),
+                DraftVariant(label="direct", text="yeah fr im down"),
+                DraftVariant(label="banter", text="only if you pay"),
+            ],
+        )
+        self.assertEqual(len(res.variants), 3)
+        self.assertEqual(res.variants[0].label, "chill")
+        self.assertEqual(res.variants[0].text, "bet")
+
 
 if __name__ == "__main__":
     unittest.main()

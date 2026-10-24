@@ -694,6 +694,48 @@ h1, h2, h3, h4 {
   margin-bottom: 12px;
 }
 
+/* ---------- 3-Energy Draft Variants ---------- */
+.draft-variants {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.variant-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.variant-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.variant-chip.active {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.35), rgba(59, 130, 246, 0.35));
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(124, 58, 237, 0.3);
+}
+
+.variant-icon {
+  font-size: 0.8rem;
+}
+
 .draft-header h3 {
   font-size: 0.82rem;
   text-transform: uppercase;

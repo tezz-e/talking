@@ -41,6 +41,8 @@ from typing import Optional
 
 from backend.models import ChatMessage
 
+from .pii_scrubber import PIIScrubber
+
 logger = logging.getLogger(__name__)
 
 
@@ -291,6 +293,7 @@ class WhatsAppParser:
                 continue
 
             content, media_type = _detect_media(body.strip())
+            content = PIIScrubber.scrub(content)
             is_user = sender.strip() == self.user_display_name
 
             messages.append(

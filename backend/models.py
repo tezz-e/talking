@@ -116,11 +116,17 @@ class SteerResponse(BaseModel):
     contact: Contact
 
 
+class DraftVariant(BaseModel):
+    label: str = Field(..., description="Energy label: chill, direct, or banter")
+    text: str = Field(..., description="Draft text for this variant")
+
+
 class GenerateResponse(BaseModel):
     """AI-generated draft reply."""
     draft: str = Field(..., description="The generated reply text")
     confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Model confidence")
     retrieved_memories: List[str] = Field(default_factory=list, description="Memories used for context")
+    variants: List[DraftVariant] = Field(default_factory=list, description="Alternative energy variants")
 
 
 class ApproveRequest(BaseModel):

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from .models import (
     ContactCreate, ContactUpdate, GenerateRequest, GenerateResponse,
-    ApproveRequest, IngestRequest, SteerRequest, SteerResponse
+    ApproveRequest, IngestRequest, SteerRequest, SteerResponse, DraftVariant
 )
 from .database import DatabaseManager
 from .memory import MemoryStore
@@ -143,18 +143,42 @@ def handle_message(req: GenerateRequest):
         user_msg = (
             f"{user_msg}\n\n"
             "[PRO MODE ACTIVE: Analyze conversational subtext and tone deeply. "
-            "Formulate the sharpest, most authentic reply that advances the active goal.]"
+            "Formulate options advancing the active goal.]"
         )
-        draft = llm.generate(sys_prompt, user_msg, temperature=0.6)
-        confidence = 0.92
-    else:
-        draft = llm.generate(sys_prompt, user_msg)
-        confidence = 0.85
+
+    variants: list[DraftVariant] = []
+    draft = ""
+    try:
+        variant_dict = llm.generate_variants(
+            sys_prompt,
+            user_msg,
+            temperature=0.6 if req.pro_mode else 0.75,
+        )
+        for label in ("chill", "direct", "banter"):
+            text = variant_dict.get(label, "").strip()
+            if text:
+                variants.append(DraftVariant(label=label, text=text))
+
+        # Select initial draft according to mood
+        if req.mood and req.mood.value in ("chill", "dry") and variant_dict.get("chill"):
+            draft = variant_dict["chill"]
+        elif req.mood and req.mood.value in ("flirty", "funny") and variant_dict.get("banter"):
+            draft = variant_dict["banter"]
+        else:
+            draft = variant_dict.get("direct") or (variants[0].text if variants else "")
+    except Exception as exc:
+        draft = llm.generate(sys_prompt, user_msg, temperature=0.6 if req.pro_mode else 0.8)
+
+    if not draft and variants:
+        draft = variants[0].text
+
+    confidence = 0.92 if req.pro_mode else 0.85
     
     return GenerateResponse(
         draft=draft,
         confidence=confidence,
-        retrieved_memories=retrieved
+        retrieved_memories=retrieved,
+        variants=variants,
     )
 
 @app.post("/api/regenerate", response_model=GenerateResponse)
@@ -188,18 +212,41 @@ def handle_regenerate(req: GenerateRequest):
     if req.pro_mode:
         user_msg = (
             f"{user_msg}\n\n"
-            "[PRO MODE ACTIVE: Formulate an alternative high-precision reply advancing the active goal.]"
+            "[PRO MODE ACTIVE: Formulate alternative high-precision replies advancing the active goal.]"
         )
-        draft = llm.generate(sys_prompt, user_msg, temperature=0.75)
-        confidence = 0.92
-    else:
+
+    variants: list[DraftVariant] = []
+    draft = ""
+    try:
+        variant_dict = llm.generate_variants(
+            sys_prompt,
+            user_msg,
+            temperature=0.75 if req.pro_mode else 0.9,
+        )
+        for label in ("chill", "direct", "banter"):
+            text = variant_dict.get(label, "").strip()
+            if text:
+                variants.append(DraftVariant(label=label, text=text))
+
+        if req.mood and req.mood.value in ("chill", "dry") and variant_dict.get("chill"):
+            draft = variant_dict["chill"]
+        elif req.mood and req.mood.value in ("flirty", "funny") and variant_dict.get("banter"):
+            draft = variant_dict["banter"]
+        else:
+            draft = variant_dict.get("direct") or (variants[0].text if variants else "")
+    except Exception:
         draft = llm.generate(sys_prompt, user_msg, temperature=0.9)
-        confidence = 0.85
+
+    if not draft and variants:
+        draft = variants[0].text
+
+    confidence = 0.92 if req.pro_mode else 0.85
     
     return GenerateResponse(
         draft=draft,
         confidence=confidence,
-        retrieved_memories=retrieved
+        retrieved_memories=retrieved,
+        variants=variants,
     )
 
 @app.post("/api/approve")

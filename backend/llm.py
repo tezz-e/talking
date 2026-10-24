@@ -111,6 +111,60 @@ class GeminiLLM:
 
         return self._retry(_call)
 
+    def generate_variants(
+        self,
+        system_instruction: str,
+        user_message: str,
+        temperature: float = 0.7,
+    ) -> dict[str, str]:
+        """
+        Generate 3 calibrated energy drafts in one API call:
+          - chill: low-effort, casual, relaxed, short (1-6 words)
+          - direct: natural, clear, moving conversation forward
+          - banter: witty, playful, teasing, or callback banter
+
+        Returns dict with keys: 'chill', 'direct', 'banter'.
+        """
+        import json
+        import re
+
+        prompt = (
+            f"{user_message}\n\n"
+            "Generate 3 distinct reply options following STYLE.md and the conversation context:\n"
+            "1. 'chill': Low-effort, super relaxed, casual, short (1 to 6 words).\n"
+            "2. 'direct': Natural, balanced, clear, moving the conversation forward.\n"
+            "3. 'banter': Playful, witty, light teasing, or inside-joke / callback energy.\n\n"
+            "Output strictly valid JSON with keys: \"chill\", \"direct\", \"banter\"."
+        )
+
+        def _call():
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=temperature,
+                    response_mime_type="application/json",
+                ),
+            )
+            return response.text
+
+        raw = self._retry(_call)
+        try:
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = re.sub(r"^```(?:json)?", "", cleaned, flags=re.IGNORECASE).strip()
+                cleaned = re.sub(r"```$", "", cleaned).strip()
+            data = json.loads(cleaned)
+            return {
+                "chill": str(data.get("chill", "")).strip(),
+                "direct": str(data.get("direct", "")).strip(),
+                "banter": str(data.get("banter", "")).strip(),
+            }
+        except Exception as exc:
+            logger.warning("Variant JSON parsing failed, using raw output: %s", exc)
+            return {"direct": raw.strip(), "chill": "", "banter": ""}
+
     def generate_with_google_search(
         self,
         system_instruction: str,

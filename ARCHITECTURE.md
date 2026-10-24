@@ -32,6 +32,7 @@ Talking/
 │   └── ingestion/
 │       ├── instagram.py        # InstagramParser: parses Meta JSON export files & handles Latin-1 mojibake
 │       ├── whatsapp.py         # WhatsAppParser: parses WhatsApp exported .txt logs
+│       ├── pii_scrubber.py     # PIIScrubber: masks credit cards, phone numbers, passwords, auth tokens
 │       └── style_extractor.py  # StyleExtractor: computes empirical style metrics & generates STYLE.md
 ├── data/
 │   ├── SOUL.template.md        # Tracked template for core persona & background context
@@ -55,12 +56,13 @@ Talking/
 ### A. Chat Ingestion Pipeline
 1. User provides exported WhatsApp `.txt` or Instagram `.json` files.
 2. Parsers normalize messages into standard `ChatMessage(sender, content, timestamp: datetime, is_user, reactions, media_type)`.
-3. Latin-1 mojibake in Instagram exports is decoded back to UTF-8.
-4. `StyleExtractor` samples user messages and evaluates cadence over the entire message sequence to calculate:
+3. **PII Masking:** `PIIScrubber` scans text and masks credit/debit cards (Luhn-validated), phone numbers, passwords, auth tokens, and government IDs with safe semantic placeholders.
+4. Latin-1 mojibake in Instagram exports is decoded back to UTF-8.
+5. `StyleExtractor` samples user messages and evaluates cadence over the entire message sequence to calculate:
    - Lowercase rate, punctuation absence rate, emoji frequency, laughing markers (`haha`, `lol`, `lmao`).
    - Double-texting percentage over full conversation threads.
    - Outputs structured markdown to `data/STYLE.md`.
-5. Conversations are partitioned into 50-message chronological chunks and embedded into ChromaDB via `MemoryStore.add_messages()`.
+6. Conversations are partitioned into 50-message chronological chunks and embedded into ChromaDB via `MemoryStore.add_messages()`.
 
 ### B. Message Draft Generation Pipeline
 1. An incoming message arrives at `/api/message` (or `/api/regenerate`).
@@ -73,7 +75,11 @@ Talking/
    - Evaluates potential song lyrics or cultural callbacks via `_resolve_known_lyric_hints()` using Gemini Google Search grounding.
    - Injects facts from SQLite `facts`.
    - Compiles the final prompt via `PersonalityEngine.build_system_prompt()`.
-5. Gemini generates the single-text response matching `STYLE.md` rules.
+5. **3-Energy Generation:** Gemini generates 3 calibrated options in a single call via `generate_variants`:
+   - `Chill`: Low-effort, short (1-6 words), casual, minimal punctuation.
+   - `Direct`: Natural, clear, moving the conversation forward.
+   - `Banter`: Playful, witty, light teasing, or inside-joke / callback energy.
+6. The UI displays the primary draft with 1-click selectable chips for instant vibe switching.
 
 ### C. Approval & Reinforcement Loop
 1. User reviews the draft in the UI.

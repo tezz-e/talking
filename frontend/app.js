@@ -16,6 +16,7 @@ const state = {
   currentDraft: null,
   currentDraftRaw: null,      // original draft before edits
   currentConfidence: null,
+  currentVariants: [],
   currentMood: 'default',
   proMode: false,
   isGenerating: false,
@@ -177,6 +178,7 @@ const dom = {
 
   // Draft
   draftPanel:       $('#draftPanel'),
+  draftVariants:    $('#draftVariants'),
   draftContent:     $('#draftContent'),
   draftActions:     $('#draftActions'),
   confidenceBadge:  $('#confidenceBadge'),
@@ -368,6 +370,7 @@ function setLoading(isLoading) {
         <span></span><span></span><span></span>
       </div>`;
     dom.draftActions.classList.add('hidden');
+    if (dom.draftVariants) dom.draftVariants.classList.add('hidden');
     dom.confidenceBadge.classList.add('hidden');
     dom.draftShortcutHint.classList.add('hidden');
   }
@@ -513,11 +516,37 @@ function renderContactProfile(contact) {
 /**
  * Show the AI draft in the draft panel.
  */
-function showDraft(draft, confidence) {
+function showDraft(draft, confidence, variants = []) {
   state.currentDraft = draft;
   state.currentDraftRaw = draft;
   state.currentConfidence = confidence;
+  state.currentVariants = variants;
   state.isEditing = false;
+
+  // Render variant chips if available
+  if (dom.draftVariants) {
+    if (variants && variants.length > 0) {
+      dom.draftVariants.innerHTML = '';
+      const icons = { chill: '🧊', direct: '🎯', banter: '🔥' };
+      variants.forEach((v) => {
+        const btn = document.createElement('button');
+        btn.className = `variant-chip ${v.text === draft ? 'active' : ''}`;
+        btn.dataset.variant = v.label;
+        btn.innerHTML = `<span class="variant-icon">${icons[v.label] || '⚡'}</span> ${v.label.charAt(0).toUpperCase() + v.label.slice(1)}`;
+        btn.addEventListener('click', () => {
+          dom.draftVariants.querySelectorAll('.variant-chip').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.currentDraft = v.text;
+          state.currentDraftRaw = v.text;
+          dom.draftContent.textContent = v.text;
+        });
+        dom.draftVariants.appendChild(btn);
+      });
+      dom.draftVariants.classList.remove('hidden');
+    } else {
+      dom.draftVariants.classList.add('hidden');
+    }
+  }
 
   // Content
   dom.draftContent.innerHTML = '';
@@ -589,7 +618,7 @@ async function handleSend() {
     setLoading(false);
 
     if (result && result.draft) {
-      showDraft(result.draft, result.confidence ?? 0.85);
+      showDraft(result.draft, result.confidence ?? 0.85, result.variants || []);
 
       // If a steering directive was passed, refresh contact profile to reflect updates
       if (steering) {
@@ -647,7 +676,7 @@ async function handleRegenerate() {
     setLoading(false);
 
     if (result && result.draft) {
-      showDraft(result.draft, result.confidence ?? 0.85);
+      showDraft(result.draft, result.confidence ?? 0.85, result.variants || []);
       showToast(state.proMode ? '⚡ Pro draft regenerated' : 'Draft regenerated', 'info');
     }
   } catch (err) {
@@ -722,6 +751,7 @@ async function handleApprove() {
   dom.draftContent.innerHTML = '<span class="draft-placeholder">AI-generated response will appear here...</span>';
   dom.draftContent.classList.remove('editable');
   dom.draftActions.classList.add('hidden');
+  if (dom.draftVariants) dom.draftVariants.classList.add('hidden');
   dom.confidenceBadge.classList.add('hidden');
   dom.draftShortcutHint.classList.add('hidden');
   dom.editDraftBtn.innerHTML = '✏️';
