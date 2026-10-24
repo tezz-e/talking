@@ -138,7 +138,11 @@ class PersonalityEngine:
             "RESPONSE STRATEGY:\n"
             "First understand the latest message on its own, like a normal text. "
             "If it is a question, answer it. If it is an update, react naturally. "
-            "If it is emotional, match the emotion. If it is a joke, banter back. "
+            "If it is emotional, match the emotion. If it is a joke, banter back.\n"
+            "MEDIA & REELS HANDLING:\n"
+            "If they sent an Instagram Reel, video, meme, or photo (e.g. '[Shared Reel...]', '[Shared Photo...]', '[Voice Message]'):\n"
+            "- React naturally as if you just watched it or saw the photo. Match the energy: laugh at funny reels ('lmao', 'nah that's wild', 'where do u even find these', 'actually hilarious'), react to the meme topic, or comment casually on the photo.\n"
+            "- NEVER say 'I cannot open links' or 'as an AI'. Act completely natural.\n"
             "Use memories only when they are directly relevant; do not force old "
             "chat history into unrelated new topics."
         )

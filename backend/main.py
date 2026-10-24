@@ -11,7 +11,8 @@ from pydantic import BaseModel
 from .models import (
     ContactCreate, ContactUpdate, GenerateRequest, GenerateResponse,
     ApproveRequest, IngestRequest, SteerRequest, SteerResponse, DraftVariant,
-    Fact, FactCreate, CopilotDraftRequest, CopilotDraftResponse
+    Fact, FactCreate, CopilotDraftRequest, CopilotDraftResponse,
+    DescribeMediaRequest, SyncHistoryRequest
 )
 from .database import DatabaseManager
 from .memory import MemoryStore
@@ -364,6 +365,69 @@ async def extract_text(file: UploadFile = File(...)):
         return {"extracted_text": text.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ─── Instagram Watcher & Media Vision ───
+
+@app.post("/api/instagram/describe_media")
+async def describe_instagram_media(req: DescribeMediaRequest):
+    import base64
+    contact = db.get_contact(req.contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    try:
+        raw_b64 = req.image_base64
+        if "," in raw_b64:
+            raw_b64 = raw_b64.split(",", 1)[1]
+        image_bytes = base64.b64decode(raw_b64)
+        description = llm.describe_image(image_bytes)
+        formatted_content = f"{req.media_type}: {description}"
+
+        from .models import Message
+        db.add_message(Message(
+            contact_id=req.contact_id,
+            role="them",
+            content=formatted_content,
+            metadata={"is_media": True, "description": description}
+        ))
+        return {
+            "status": "ok",
+            "description": description,
+            "formatted_content": formatted_content
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+@app.post("/api/instagram/sync_history")
+async def sync_instagram_history(req: SyncHistoryRequest):
+    contact = db.get_contact(req.contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    from .models import Message
+    recent_db_msgs = db.get_recent_messages(req.contact_id, n=30)
+    recent_signatures = {(m.role, m.content.strip()) for m in recent_db_msgs}
+
+    added = 0
+    for m in req.messages:
+        content = str(m.get("content", "")).strip()
+        if not content:
+            continue
+        raw_role = str(m.get("role", "them")).lower()
+        role = "you" if raw_role in ("you", "me", "assistant") else "them"
+
+        sig = (role, content)
+        if sig not in recent_signatures:
+            db.add_message(Message(
+                contact_id=req.contact_id,
+                role=role,
+                content=content,
+                metadata={"source": "ig_sync"}
+            ))
+            recent_signatures.add(sig)
+            added += 1
+
+    return {"status": "synced", "count": added}
 
 # ─── Ingestion ───
 

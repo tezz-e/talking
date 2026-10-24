@@ -276,6 +276,36 @@ class GeminiLLM:
 
         return self._retry(_call)
 
+    def describe_image(self, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+        """
+        Produce a concise, natural description of an image or reel thumbnail
+        for conversational context.
+        """
+        system_instruction = (
+            "You are a multimodal vision engine for a casual texting assistant. "
+            "Analyze the image or reel preview. Output a single, concise descriptive sentence "
+            "describing what is shown, who or what is doing what, any meme text or punchline, "
+            "or the general topic (e.g. 'A video of an orange cat knocking a cup off the counter' "
+            "or 'A meme joking about debugging code at 3am' or 'A photo of a sunset at the beach'). "
+            "Do NOT include boilerplate or preamble. Just the concise description."
+        )
+
+        def _call():
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=[
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                    types.Part.from_text(text="Describe this media briefly for chat context.")
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.2,
+                ),
+            )
+            return response.text.strip() if response.text else "media"
+
+        return self._retry(_call)
+
     # ── Embeddings ────────────────────────────────────────────────────────
 
     def embed(self, text: str) -> list[float]:

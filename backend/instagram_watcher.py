@@ -316,8 +316,19 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                     const selector = `[data-talking-media-id="${el.getAttribute('data-talking-media-id')}"]`;
 
                     let mediaType = '[Sent a photo]';
-                    if (el.tagName.toLowerCase() === 'video') mediaType = '[Sent a reel/video]';
-                    else if (el.src?.includes('giphy') || el.src?.includes('stickers')) mediaType = '[Sent a GIF/sticker]';
+                    const reelParent = el.closest('a[href*="/reel/"], a[href*="/p/"]');
+                    if (reelParent) {
+                        const href = reelParent.href || '';
+                        const isReel = href.includes('/reel/');
+                        const alt = el.getAttribute('alt') || '';
+                        mediaType = `[Shared ${isReel ? 'Instagram Reel' : 'Post'}: ${href}${alt ? ' | ' + alt : ''}]`;
+                    } else if (el.tagName.toLowerCase() === 'video') {
+                        mediaType = '[Sent a reel/video]';
+                    } else if (el.src?.includes('giphy') || el.src?.includes('stickers')) {
+                        mediaType = '[Sent a GIF/sticker]';
+                    } else if (el.getAttribute('alt')) {
+                        mediaType = `[Sent a photo: ${el.getAttribute('alt')}]`;
+                    }
                     
                     let role = null;
                     let curr = el;

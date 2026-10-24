@@ -12,11 +12,14 @@
   let activeOriginalDraft = null;
   let activeVariants = [];
   let currentVariantLabel = 'direct';
-  let isProMode = localStorage.getItem('talking_copilot_pro') === 'true';
+  let isProMode = false;
+  try {
+    isProMode = localStorage.getItem('talking_copilot_pro') === 'true';
+  } catch {}
 
   // ── Platform Detection ──────────────────────────────────────────────
-  const isWhatsApp = () => window.location.hostname.includes('web.whatsapp.com');
-  const isInstagram = () => window.location.hostname.includes('instagram.com');
+  const isWhatsApp = () => window.location.hostname.includes('web.whatsapp.com') || window.__MOCK_PLATFORM__ === 'whatsapp';
+  const isInstagram = () => window.location.hostname.includes('instagram.com') || window.__MOCK_PLATFORM__ === 'instagram';
 
   // ── DOM Extraction Helpers ──────────────────────────────────────────
 
@@ -48,18 +51,125 @@
       const incomingNodes = document.querySelectorAll('div.message-in');
       if (incomingNodes.length === 0) return '';
       const last = incomingNodes[incomingNodes.length - 1];
+
       const textEl = last.querySelector('.selectable-text') || last.querySelector('.copyable-text');
-      return textEl ? textEl.textContent.trim() : '';
+      const text = textEl ? textEl.textContent.trim() : '';
+
+      // Media checks
+      const img = last.querySelector('img[src]');
+      const isSticker = last.querySelector('[data-testid="sticker"]') || (img && img.src && img.src.includes('sticker'));
+      const isVoice = last.querySelector('[data-testid="audio-play"]') || last.querySelector('audio') || last.querySelector('span[data-icon*="audio"]');
+      const isVideo = last.querySelector('video') || last.querySelector('[data-testid="video-thumb"]');
+      const isPhoto = img && !isSticker && (img.width > 50 || img.naturalWidth > 50 || last.querySelector('[data-testid="image-thumb"]'));
+
+      if (isSticker) return text ? `[Sticker] ${text}` : '[Sticker]';
+      if (isVoice) return text ? `[Voice Message] ${text}` : '[Voice Message]';
+      if (isVideo) return text ? `[Video: ${text}]` : (text || '[Sent a video]');
+      if (isPhoto) {
+        const alt = img.getAttribute('alt') || '';
+        const desc = alt && !alt.toLowerCase().includes('photo') ? `: ${alt}` : '';
+        return text ? `[Photo${desc}] ${text}` : `[Photo${desc}]`;
+      }
+
+      return text;
     }
 
     if (isInstagram()) {
-      // Look for message bubbles in main direct thread
-      const bubbles = document.querySelectorAll('div[role="main"] div[dir="auto"]');
-      if (bubbles.length === 0) return '';
-      // Scan from bottom to top for incoming message
-      for (let i = bubbles.length - 1; i >= 0; i--) {
-        const text = bubbles[i].textContent.trim();
-        if (text && text.length > 0 && !text.includes('Seen') && !text.includes('Delivered')) {
+      const mainContainer = document.querySelector('div[role="main"]') || document.querySelector('main');
+      if (!mainContainer) return '';
+
+      // Check all candidate bubbles in main direct thread
+      const candidateElements = Array.from(mainContainer.querySelectorAll('div[dir="auto"], a[href*="/reel/"], a[href*="/p/"], div[role="button"] img, img'));
+
+      for (let i = candidateElements.length - 1; i >= 0; i--) {
+        const el = candidateElements[i];
+
+        // Filter out header, footer/input, nav, or user avatars
+        if (el.closest('header') || el.closest('footer') || el.closest('form') || el.closest('nav')) continue;
+        if (el.tagName.toLowerCase() === 'img') {
+          const w = el.width || parseInt(el.getAttribute('width') || '0', 10) || el.getBoundingClientRect().width;
+          const h = el.height || parseInt(el.getAttribute('height') || '0', 10) || el.getBoundingClientRect().height;
+          if (w < 40 && h < 40 && w > 0) continue;
+        }
+
+        // Alignment check: find if outgoing ('you') or incoming ('them')
+        let isOutgoing = false;
+        let curr = el;
+        while (curr && curr !== mainContainer) {
+          const align = window.getComputedStyle(curr).alignSelf;
+          const justify = window.getComputedStyle(curr).justifyContent;
+          if (align === 'flex-end' || justify === 'flex-end') {
+            isOutgoing = true;
+            break;
+          }
+          if (align === 'flex-start' || justify === 'flex-start') {
+            isOutgoing = false;
+            break;
+          }
+          curr = curr.parentElement;
+        }
+
+        if (!isOutgoing) {
+          const rect = el.getBoundingClientRect();
+          let parent = el.parentElement;
+          let rowRect = null;
+          while (parent && parent !== mainContainer) {
+            const pRect = parent.getBoundingClientRect();
+            if (pRect.width >= 200 && pRect.width > rect.width * 1.1) {
+              rowRect = pRect;
+              break;
+            }
+            parent = parent.parentElement;
+          }
+          if (rowRect) {
+            const leftDist = Math.abs(rect.left - rowRect.left);
+            const rightDist = Math.abs(rowRect.right - rect.right);
+            if (rightDist < leftDist * 0.75) {
+              isOutgoing = true;
+            }
+          }
+        }
+
+        if (isOutgoing) continue;
+
+        // Check if this incoming item is a Reel or shared post
+        const reelLink = el.closest('a[href*="/reel/"]') || el.closest('a[href*="/p/"]');
+        if (reelLink) {
+          const href = reelLink.href || '';
+          const isReel = href.includes('/reel/');
+          const img = reelLink.querySelector('img');
+          const altText = img?.getAttribute('alt') || '';
+          const textSnippet = Array.from(reelLink.querySelectorAll('div, span'))
+            .map((s) => s.innerText?.trim())
+            .filter((t) => t && !t.includes('Watch on') && !t.includes('Reel') && t.length > 2)
+            .slice(0, 2)
+            .join(' - ');
+
+          let detail = textSnippet || altText;
+          return `[Shared ${isReel ? 'Instagram Reel' : 'Post'}: ${href}${detail ? ' | ' + detail : ''}]`;
+        }
+
+        // Check if it's an image/photo
+        if (el.tagName.toLowerCase() === 'img') {
+          const alt = el.getAttribute('alt') || '';
+          return alt ? `[Sent a photo: ${alt}]` : '[Sent a photo]';
+        }
+
+        // Otherwise regular text
+        const text = el.innerText ? el.innerText.trim() : '';
+        if (text && !text.includes('Seen') && !text.includes('Delivered') && text.length > 0) {
+          // Check if parent bubble also has a reel or photo adjacent
+          const parentBubble = el.closest('div[role="row"]') || el.parentElement;
+          if (parentBubble) {
+            const innerReel = parentBubble.querySelector('a[href*="/reel/"], a[href*="/p/"]');
+            if (innerReel) {
+              return `[Shared Reel: ${innerReel.href}] "${text}"`;
+            }
+            const innerImg = parentBubble.querySelector('img');
+            if (innerImg && innerImg.width > 60) {
+              return `[Photo] "${text}"`;
+            }
+          }
           return text;
         }
       }
@@ -241,7 +351,9 @@
     // Pro mode toggle
     proToggle?.addEventListener('change', (e) => {
       isProMode = e.target.checked;
-      localStorage.setItem('talking_copilot_pro', isProMode ? 'true' : 'false');
+      try {
+        localStorage.setItem('talking_copilot_pro', isProMode ? 'true' : 'false');
+      } catch {}
     });
 
     // Regenerate
@@ -368,6 +480,15 @@
     observer.observe(document.body, { childList: true, subtree: true });
     console.log('[Talking Copilot] Active on', window.location.hostname);
   }
+
+  // Expose internal helpers on window for extension messaging and testing
+  window._talkingCopilot = {
+    getActiveContactName,
+    getLastIncomingMessage,
+    insertTextIntoChat,
+    triggerDraftGeneration,
+    closeCopilotModal,
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

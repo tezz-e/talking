@@ -11,3 +11,4 @@ aiofiles
 python-dotenv
 requests
 httpx
+playwright

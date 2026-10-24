@@ -147,6 +147,19 @@ class CopilotDraftResponse(BaseModel):
     retrieved_memories: List[str] = Field(default_factory=list)
 
 
+class DescribeMediaRequest(BaseModel):
+    """Request to describe a screenshot of media (reel, photo) via multimodal vision."""
+    contact_id: str = Field(..., description="Target contact ID")
+    media_type: str = Field(default="[Sent a photo]", description="Media classification")
+    image_base64: str = Field(..., description="Base64-encoded image bytes")
+
+
+class SyncHistoryRequest(BaseModel):
+    """Request to sync recently observed DOM messages from Instagram watcher."""
+    contact_id: str = Field(..., description="Target contact ID")
+    messages: List[Dict[str, Any]] = Field(default_factory=list, description="List of message objects")
+
+
 class GenerateResponse(BaseModel):
     """AI-generated draft reply."""
     draft: str = Field(..., description="The generated reply text")
