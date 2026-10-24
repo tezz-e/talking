@@ -163,12 +163,36 @@ Talking/
 
 * **Architecture:** Injects into WhatsApp Web and Instagram Direct as either a standalone userscript (`extension/talking-copilot.user.js` via Tampermonkey/Violentmonkey) or a Chrome MV3 Extension (`extension/manifest.json`).
 * **Trigger:** Pressing `Alt+D` or clicking the floating `⚡ Draft` pill detects the current chat header and latest incoming message turn.
+* **Multimodal Detection:**
+  - Instagram Reels (`a[href*="/reel/"]`) and shared posts (`a[href*="/p/"]`): extracts direct URL, creator handle, and visual alt text thumbnails.
+  - WhatsApp media: parses photos, videos, voice notes, stickers, and attached captions.
+  - Multimodal Vision API (`POST /api/instagram/describe_media`): calls Gemini Vision (`gemini-2.5-flash`) to generate 1-sentence descriptions of incoming image thumbnails.
+* **Swipe-to-Reply & Quoted Context:**
+  - **Active Swipe Bar:** Detects when a user swiped or clicked reply to a specific message (`footer [data-testid="quoted-message"]` on WhatsApp, `"Replying to [User]"` banner on Instagram). Prioritizes this active reply intent over general chronological history.
+  - **Quoted Bubbles:** Parses quotes embedded within incoming message bubbles, formatting context as `"${replyText}" [Replying to: "${quotedText}"]` so the LLM directly resolves questions or replies to the specific target topic.
 * **Backend Endpoint:** Calls `POST /api/copilot/draft`, which automatically gets or creates the contact in SQLite, runs RAG context assembly, and returns 3 calibrated energy drafts (`🧊 Chill`, `🎯 Direct`, `🔥 Banter`).
 * **Insertion & Learning:** Clicking `Insert (Enter)` inserts the chosen reply directly into the site's rich-text input (`document.execCommand('insertText')`) and sends `POST /api/approve` back to Talking so the system continuously learns the user's conversational voice.
 
 ---
 
-## 7. Privacy & Git Boundaries
+## 7. Automated End-to-End Testing Suite (Playwright)
+
+* **Location:** [`tests/test_playwright.py`](file:///D:/Talking/tests/test_playwright.py)
+* **Coverage:**
+  1. Full dashboard UI rendering, mood switching, and Pro Mode toggle.
+  2. Fact Inspector: adding biographical facts, tag rendering, and instant deletion.
+  3. Instagram Direct Reel and shared post extraction.
+  4. Instagram Direct photo and alt text extraction.
+  5. WhatsApp Web photo, voice note, and caption extraction.
+  6. In-page text insertion into editable rich-text chat containers via `document.execCommand`.
+  7. WhatsApp active swipe-to-reply bar detection in footer.
+  8. Instagram Direct active swipe-to-reply banner detection in footer.
+  9. WhatsApp incoming quoted message bubble parsing.
+  10. Instagram Direct incoming quoted message bubble parsing.
+
+---
+
+## 8. Privacy & Git Boundaries
 
 Under no circumstances should personal conversation records or private credentials be tracked in git:
 - Strictly excluded: `.env`, `data/db/`, `data/exports/`, `data/ig_session/`.
