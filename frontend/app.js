@@ -383,11 +383,10 @@ function renderMessages(messages) {
 
   const fragment = document.createDocumentFragment();
 
-  messages.forEach((msg, index) => {
+  messages.forEach((msg) => {
     const row = document.createElement('div');
     const isOutgoing = msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing';
     row.className = `message-row ${isOutgoing ? 'outgoing' : 'incoming'}`;
-    row.style.animationDelay = `${Math.min(index * 30, 300)}ms`;
 
     const wasEdited = isOutgoing && msg.was_edited;
     const senderName = isOutgoing ? 'You' : (state.currentContact?.name || 'Them');
@@ -402,7 +401,7 @@ function renderMessages(messages) {
 
   dom.messageHistory.appendChild(fragment);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom immediately
   requestAnimationFrame(() => {
     dom.messageHistory.scrollTop = dom.messageHistory.scrollHeight;
   });
@@ -412,13 +411,16 @@ function renderMessages(messages) {
  * Add a single message to the chat (for live updates).
  */
 function appendMessage(msg) {
+  if (!state.messages) state.messages = [];
+  state.messages.push(msg);
+
   // Remove empty state if present
   const emptyEl = dom.messageHistory.querySelector('.message-history-empty');
   if (emptyEl) emptyEl.remove();
 
   const row = document.createElement('div');
   const isOutgoing = msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing';
-  row.className = `message-row ${isOutgoing ? 'outgoing' : 'incoming'}`;
+  row.className = `message-row animate-in ${isOutgoing ? 'outgoing' : 'incoming'}`;
 
   const wasEdited = isOutgoing && msg.was_edited;
   const senderName = isOutgoing ? 'You' : (state.currentContact?.name || 'Them');
@@ -529,6 +531,10 @@ async function handleSend() {
     return;
   }
 
+  // Guard immediately against duplicate submits
+  state.isGenerating = true;
+  dom.sendBtn.disabled = true;
+
   state.lastIncomingMessage = text;
 
   // Add incoming message to chat
@@ -542,7 +548,7 @@ async function handleSend() {
   dom.messageInput.value = '';
   autoResize(dom.messageInput);
 
-  // Start generation
+  // Start generation UI
   setLoading(true);
 
   try {
@@ -644,10 +650,14 @@ async function handleApprove() {
   if (!state.currentDraft || !state.currentContact) return;
 
   const finalMessage = state.currentDraft;
-  const wasEdited = finalMessage !== state.currentDraftRaw;
+  const draftRaw = state.currentDraftRaw;
+  const wasEdited = finalMessage !== draftRaw;
 
-  // Copy to clipboard
-  const copied = await copyToClipboard(finalMessage);
+  // Immediately clear state and disable button to prevent double approvals
+  state.currentDraft = null;
+  state.currentDraftRaw = null;
+  state.currentConfidence = null;
+  dom.approveBtn.disabled = true;
 
   // Add outgoing message to chat
   appendMessage({
@@ -669,7 +679,10 @@ async function handleApprove() {
   dom.draftShortcutHint.classList.add('hidden');
   dom.editDraftBtn.innerHTML = '✏️';
   state.isEditing = false;
+  dom.approveBtn.disabled = false;
 
+  // Copy to clipboard
+  const copied = await copyToClipboard(finalMessage);
   if (copied) {
     showToast('Copied! ✅', 'success');
   } else {
@@ -678,16 +691,12 @@ async function handleApprove() {
 
   // Save to backend
   try {
-    await api.approve(state.currentContact.id, state.currentDraftRaw, finalMessage);
+    await api.approve(state.currentContact.id, draftRaw, finalMessage);
     updateStats();
   } catch (err) {
     console.error('Approve save error:', err);
     // Non-blocking — message already copied
   }
-
-  state.currentDraft = null;
-  state.currentDraftRaw = null;
-  state.currentConfidence = null;
 }
 
 /**

@@ -352,8 +352,11 @@ h1, h2, h3, h4 {
 .message-row {
   display: flex;
   flex-direction: column;
-  animation: messageSlideIn 0.35s var(--transition-spring) both;
   max-width: 75%;
+}
+
+.message-row.animate-in {
+  animation: messageSlideIn 0.25s var(--transition-spring) both;
 }
 
 @keyframes messageSlideIn {
