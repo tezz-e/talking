@@ -1989,6 +1989,8 @@ input:focus, select:focus, textarea:focus {
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  font: inherit;
+  width: 100%;
 }
 
 .ingest-option.selected {

@@ -30,7 +30,7 @@
           talking<span class="block-caret" aria-hidden="true"></span>
         </div>
         <div class="contact-selector-wrap" id="contactSelectorWrap">
-          <select id="contactSelector" class="accessible-select" aria-label="Select contact">
+          <select id="contactSelector" class="accessible-select" aria-label="Select contact" tabindex="-1" aria-hidden="true">
             <option value="">— SELECT CONTACT —</option>
             <option value="__new__">+ NEW CONTACT</option>
           </select>
@@ -67,7 +67,7 @@
       <section class="chat-panel">
 
         <!-- Message History Thread (Flex-1, auto-scrolls, never obscured) -->
-        <div class="message-history" id="messageHistory" role="log" aria-live="polite">
+        <div class="message-history" id="messageHistory" role="log">
           <div class="message-history-empty" id="emptyState">
             <div class="empty-icon-box">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -75,6 +75,8 @@
             <p>No messages recorded yet.<br />Paste incoming message below to begin proofing.</p>
           </div>
         </div>
+        <!-- Visually hidden live region for screen reader announcements of new messages only -->
+        <div id="messageAnnouncer" class="sr-only visually-hidden" aria-live="polite" aria-atomic="true"></div>
 
         <!-- AI Draft Panel (Docked Proof Desk on 24px Baseline Grid) -->
         <div class="draft-panel" id="draftPanel">
@@ -92,7 +94,7 @@
               <span class="draft-provenance hidden" id="draftProvenance"></span>
             </div>
             <div class="draft-header-right">
-              <button class="btn-marks-toggle" id="marksToggleBtn" type="button" title="Toggle word diff revision marks">
+              <button class="btn-marks-toggle" id="marksToggleBtn" type="button" aria-pressed="false" title="Toggle word diff revision marks">
                 MARKS
               </button>
             </div>
@@ -109,7 +111,7 @@
           <!-- Draft Desk Actions -->
           <div class="draft-actions hidden" id="draftActions">
             <div class="draft-actions-left">
-              <button class="btn-icon-editorial" id="editDraftBtn" type="button" title="Edit draft manually">
+              <button class="btn-icon-editorial" id="editDraftBtn" type="button" aria-pressed="false" title="Edit draft manually">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
               </button>
               <button class="btn-icon-editorial" id="regenBtn" type="button" title="Regenerate variants">
@@ -117,7 +119,7 @@
               </button>
             </div>
             <div class="draft-actions-right">
-              <button class="btn-approve" id="approveBtn" type="button" title="Approve &amp; Copy (Ctrl+Shift+C)">
+              <button class="btn-approve" id="approveBtn" type="button" title="Approve &amp; Copy (Ctrl+Shift+Enter)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 <span>APPROVE &amp; COPY</span>
               </button>
@@ -125,7 +127,7 @@
           </div>
 
           <div class="shortcut-hint hidden" id="draftShortcutHint">
-            <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">C</span> TO COPY DRAFT
+            <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">Enter</span> TO COPY DRAFT
           </div>
         </div>
 
@@ -154,11 +156,11 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
 
-            <button class="btn-pro-toggle" id="proModeBtn" type="button" title="Toggle Pro Mode (deeper reasoning &amp; strategic steering)">
+            <button class="btn-pro-toggle" id="proModeBtn" type="button" aria-pressed="false" title="Toggle Pro Mode (deeper reasoning &amp; strategic steering)">
               PRO [OFF]
             </button>
 
-            <button class="btn-note-toggle" id="noteToggleBtn" type="button" title="Add steering margin note (Ctrl+K)">
+            <button class="btn-note-toggle" id="noteToggleBtn" type="button" aria-pressed="false" title="Add steering margin note (Ctrl+K)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
               <span>NOTE</span>
             </button>
@@ -215,12 +217,12 @@
               <option value="colleague">Colleague</option>
             </select>
             <div class="segmented-group" id="stageSegmentedGroup">
-              <button type="button" class="segmented-btn active" data-val="stranger">STRANGER</button>
-              <button type="button" class="segmented-btn" data-val="friend">FRIEND</button>
-              <button type="button" class="segmented-btn" data-val="close_friend">CLOSE</button>
-              <button type="button" class="segmented-btn" data-val="crush">CRUSH</button>
-              <button type="button" class="segmented-btn" data-val="partner">PARTNER</button>
-              <button type="button" class="segmented-btn" data-val="colleague">WORK</button>
+              <button type="button" class="segmented-btn active" data-val="stranger" aria-pressed="true">STRANGER</button>
+              <button type="button" class="segmented-btn" data-val="friend" aria-pressed="false">FRIEND</button>
+              <button type="button" class="segmented-btn" data-val="close_friend" aria-pressed="false">CLOSE</button>
+              <button type="button" class="segmented-btn" data-val="crush" aria-pressed="false">CRUSH</button>
+              <button type="button" class="segmented-btn" data-val="partner" aria-pressed="false">PARTNER</button>
+              <button type="button" class="segmented-btn" data-val="colleague" aria-pressed="false">WORK</button>
             </div>
           </div>
 
@@ -235,11 +237,11 @@
               <option value="keep_warm">Keep Warm</option>
             </select>
             <div class="segmented-group" id="goalSegmentedGroup">
-              <button type="button" class="segmented-btn active" data-val="just_vibing">VIBING</button>
-              <button type="button" class="segmented-btn" data-val="make_plans">PLANS</button>
-              <button type="button" class="segmented-btn" data-val="romantic">ROMANTIC</button>
-              <button type="button" class="segmented-btn" data-val="get_to_know">EXPLORE</button>
-              <button type="button" class="segmented-btn" data-val="keep_warm">WARM</button>
+              <button type="button" class="segmented-btn active" data-val="just_vibing" aria-pressed="true">VIBING</button>
+              <button type="button" class="segmented-btn" data-val="make_plans" aria-pressed="false">PLANS</button>
+              <button type="button" class="segmented-btn" data-val="romantic" aria-pressed="false">ROMANTIC</button>
+              <button type="button" class="segmented-btn" data-val="get_to_know" aria-pressed="false">EXPLORE</button>
+              <button type="button" class="segmented-btn" data-val="keep_warm" aria-pressed="false">WARM</button>
             </div>
           </div>
 
@@ -333,7 +335,7 @@
           </div>
 
           <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
-            <button class="btn-pro-toggle" id="watcherFullAutoBtn" type="button" title="Toggle Auto-Send: automatically dispatch replies directly into Instagram DMs without waiting" style="flex: 1; justify-content: center; height: 30px;">
+            <button class="btn-pro-toggle" id="watcherFullAutoBtn" type="button" aria-pressed="false" title="Toggle Auto-Send: automatically dispatch replies directly into Instagram DMs without waiting" style="flex: 1; justify-content: center; height: 30px;">
               AUTO-SEND [OFF]
             </button>
             <button class="btn-approve" id="watcherLaunchBtn" type="button" style="flex: 1.5; justify-content: center; height: 30px;">
@@ -359,12 +361,12 @@
           <div class="form-group">
             <div class="segmented-label">ACTIVE ENERGY REGISTER</div>
             <div class="mood-selector" id="moodSelector">
-              <button class="mood-chip active" data-mood="default">DEFAULT</button>
-              <button class="mood-chip" data-mood="chill">CHILL</button>
-              <button class="mood-chip" data-mood="flirty">FLIRTY</button>
-              <button class="mood-chip" data-mood="deep">DEEP</button>
-              <button class="mood-chip" data-mood="funny">FUNNY</button>
-              <button class="mood-chip" data-mood="dry">DRY</button>
+              <button class="mood-chip active" data-mood="default" aria-pressed="true">DEFAULT</button>
+              <button class="mood-chip" data-mood="chill" aria-pressed="false">CHILL</button>
+              <button class="mood-chip" data-mood="flirty" aria-pressed="false">FLIRTY</button>
+              <button class="mood-chip" data-mood="deep" aria-pressed="false">DEEP</button>
+              <button class="mood-chip" data-mood="funny" aria-pressed="false">FUNNY</button>
+              <button class="mood-chip" data-mood="dry" aria-pressed="false">DRY</button>
             </div>
           </div>
 
@@ -411,7 +413,7 @@
     <div class="modal">
       <div class="modal-header">
         <h2 id="soulModalTitle">SOUL.MD EDITORIAL REGISTER</h2>
-        <button class="modal-close" onclick="hideModal('soulModal')">✕</button>
+        <button class="modal-close" onclick="hideModal('soulModal')" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
         <textarea id="soulEditor" placeholder="Loading SOUL.md..."></textarea>
@@ -428,7 +430,7 @@
     <div class="modal">
       <div class="modal-header">
         <h2 id="styleModalTitle">STYLE.MD SPECIFICATION</h2>
-        <button class="modal-close" onclick="hideModal('styleModal')">✕</button>
+        <button class="modal-close" onclick="hideModal('styleModal')" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
         <div class="read-only-content" id="styleContent">Loading...</div>
@@ -444,25 +446,25 @@
     <div class="modal">
       <div class="modal-header">
         <h2 id="ingestModalTitle">INGEST HISTORICAL TRANSCRIPTS</h2>
-        <button class="modal-close" onclick="hideModal('ingestModal')">✕</button>
+        <button class="modal-close" onclick="hideModal('ingestModal')" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
 
         <div class="form-group">
           <label class="segmented-label">SOURCE PLATFORM</label>
           <div class="ingest-options" id="ingestSourceOptions">
-            <div class="ingest-option selected" data-source="instagram">
+            <button type="button" class="ingest-option selected" data-source="instagram" aria-pressed="true">
               <span class="machine" style="font-weight:600;">INSTAGRAM</span>
               <span class="machine" style="font-size:10px; color:var(--text-muted);">DIRECT EXPORT</span>
-            </div>
-            <div class="ingest-option" data-source="whatsapp">
+            </button>
+            <button type="button" class="ingest-option" data-source="whatsapp" aria-pressed="false">
               <span class="machine" style="font-weight:600;">WHATSAPP</span>
               <span class="machine" style="font-size:10px; color:var(--text-muted);">&gt; CHAT.TXT</span>
-            </div>
-            <div class="ingest-option" data-source="telegram">
+            </button>
+            <button type="button" class="ingest-option" data-source="telegram" aria-pressed="false">
               <span class="machine" style="font-weight:600;">TELEGRAM</span>
               <span class="machine" style="font-size:10px; color:var(--text-muted);">JSON ARCHIVE</span>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -499,7 +501,7 @@
   </div>
 
   <!-- Toast Container -->
-  <div class="toast-container" id="toastContainer"></div>
+  <div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
 
   <!-- Dashboard Script -->
   <script src="/static/app.js"></script>

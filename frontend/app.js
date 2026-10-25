@@ -470,24 +470,94 @@ function showToast(message, type = 'info', duration = 3000) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Modal Management
+// Modal Management (Focus Trapping & Escape Stack)
 // ─────────────────────────────────────────────────────────────
 
-function showModal(id) {
+const modalStack = [];
+
+function showModal(id, openerElement) {
   const overlay = document.getElementById(id);
-  if (overlay) {
-    overlay.classList.remove('hidden');
-    setTimeout(() => {
-      const focusable = overlay.querySelector('textarea, input, select');
-      if (focusable) focusable.focus();
-    }, 50);
-  }
+  if (!overlay) return;
+
+  const opener = openerElement || document.activeElement;
+  modalStack.push({ id, overlay, opener });
+
+  overlay.classList.remove('hidden');
+
+  setTimeout(() => {
+    const focusable = overlay.querySelectorAll('textarea:not([disabled]), input:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    const inputOrTextarea = overlay.querySelector('textarea, input, select');
+    if (inputOrTextarea) {
+      inputOrTextarea.focus();
+    } else {
+      const modalBox = overlay.querySelector('.modal');
+      if (modalBox) {
+        modalBox.setAttribute('tabindex', '-1');
+        modalBox.focus();
+      } else if (focusable.length > 0) {
+        focusable[0].focus();
+      }
+    }
+  }, 40);
 }
 
 function hideModal(id) {
-  const overlay = document.getElementById(id);
+  let modalEntry = null;
+  if (id) {
+    const idx = modalStack.findIndex(m => m.id === id);
+    if (idx !== -1) {
+      modalEntry = modalStack.splice(idx, 1)[0];
+    }
+  } else if (modalStack.length > 0) {
+    modalEntry = modalStack.pop();
+  }
+
+  const overlay = modalEntry?.overlay || (id ? document.getElementById(id) : null);
   if (overlay) overlay.classList.add('hidden');
+
+  if (modalEntry && modalEntry.opener && typeof modalEntry.opener.focus === 'function' && document.body.contains(modalEntry.opener)) {
+    modalEntry.opener.focus();
+  }
 }
+
+// Modal Focus Trap and Escape key listener
+document.addEventListener('keydown', (e) => {
+  if (modalStack.length === 0) return;
+  const top = modalStack[modalStack.length - 1];
+
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    hideModal(top.id);
+    return;
+  }
+
+  if (e.key === 'Tab') {
+    const focusableElements = Array.from(top.overlay.querySelectorAll(
+      'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(el => el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0);
+
+    if (focusableElements.length === 0) {
+      e.preventDefault();
+      return;
+    }
+
+    const first = focusableElements[0];
+    const last = focusableElements[focusableElements.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === first || !top.overlay.contains(document.activeElement)) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last || !top.overlay.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+});
 
 // Expose for inline handlers
 window.showModal = showModal;
@@ -602,6 +672,12 @@ function appendMessage(msg) {
 
   dom.messageHistory.appendChild(row);
 
+  // Announce only newest message to screen readers
+  const announcer = document.getElementById('messageAnnouncer');
+  if (announcer) {
+    announcer.textContent = `${senderName}: ${msg.content || msg.text || ''}`;
+  }
+
   // Smooth scroll so the thread's last message is always in full view
   requestAnimationFrame(() => {
     dom.messageHistory.scrollTop = dom.messageHistory.scrollHeight;
@@ -660,12 +736,16 @@ function renderContactProfile(contact) {
 function syncSegmentedControls(stageVal, goalVal) {
   if (dom.stageSegmentedGroup) {
     dom.stageSegmentedGroup.querySelectorAll('.segmented-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.val === stageVal);
+      const isActive = btn.dataset.val === stageVal;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
     });
   }
   if (dom.goalSegmentedGroup) {
     dom.goalSegmentedGroup.querySelectorAll('.segmented-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.val === goalVal);
+      const isActive = btn.dataset.val === goalVal;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
     });
   }
 }
@@ -845,16 +925,25 @@ function showDraft(draft, confidence, variants = [], bubbles = []) {
         btn.type = 'button';
         btn.className = `variant-chip ${v.text === draft ? 'active' : ''}`;
         btn.dataset.variant = v.label;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', v.text === draft ? 'true' : 'false');
         btn.innerHTML = `<span>${letter} · ${escapeHtml(v.label.toUpperCase())}</span> ${countBadge}`;
         
         btn.addEventListener('click', () => {
-          dom.draftVariants.querySelectorAll('.variant-chip').forEach((b) => b.classList.remove('active'));
+          dom.draftVariants.querySelectorAll('.variant-chip').forEach((b) => {
+            b.classList.remove('active');
+            b.setAttribute('aria-selected', 'false');
+          });
           btn.classList.add('active');
+          btn.setAttribute('aria-selected', 'true');
           updateVariantSlider(btn);
           state.currentDraft = v.text;
           state.currentDraftRaw = v.text;
           state.isEditing = false;
-          if (dom.editDraftBtn) dom.editDraftBtn.title = 'Edit draft manually';
+          if (dom.editDraftBtn) {
+            dom.editDraftBtn.title = 'Edit draft manually';
+            dom.editDraftBtn.setAttribute('aria-pressed', 'false');
+          }
           renderDraftContent(v.text, v.bubbles);
         });
         dom.draftVariants.appendChild(btn);
@@ -1130,6 +1219,7 @@ function handleEditDraft() {
     textarea.focus();
     autoResize(textarea);
     dom.editDraftBtn.title = 'Done editing';
+    dom.editDraftBtn.setAttribute('aria-pressed', 'true');
   } else {
     const trimmed = (state.currentDraft || '').trim();
     const doubleSplit = trimmed.split(/\n\n+/).filter(Boolean);
@@ -1137,6 +1227,7 @@ function handleEditDraft() {
     const bubbles = doubleSplit.length > 1 ? doubleSplit : (singleSplit.length > 1 ? singleSplit : []);
     renderDraftContent(state.currentDraft, bubbles);
     dom.editDraftBtn.title = 'Edit draft manually';
+    dom.editDraftBtn.setAttribute('aria-pressed', 'false');
   }
 }
 
@@ -1273,9 +1364,29 @@ function handleMoodSelect(e) {
   const chip = e.target.closest('.mood-chip');
   if (!chip) return;
 
-  $$('.mood-chip').forEach((c) => c.classList.remove('active'));
+  $$('.mood-chip').forEach((c) => {
+    c.classList.remove('active');
+    c.setAttribute('aria-pressed', 'false');
+  });
   chip.classList.add('active');
+  chip.setAttribute('aria-pressed', 'true');
   state.currentMood = chip.dataset.mood;
+}
+
+function selectDropdownOption(val) {
+  const trigger = document.getElementById('customContactTrigger');
+  const dropdown = document.getElementById('customContactDropdown');
+  if (dom.contactSelector) {
+    dom.contactSelector.value = val;
+    dom.contactSelector.dispatchEvent(new Event('change'));
+  }
+  if (dropdown) dropdown.classList.add('hidden');
+  if (trigger) {
+    trigger.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.focus();
+  }
+  renderCustomContactDropdown(state.contacts);
 }
 
 function renderCustomContactDropdown(contacts) {
@@ -1288,10 +1399,12 @@ function renderCustomContactDropdown(contacts) {
   if (state.currentContact) {
     label.textContent = (state.currentContact.name || 'CONTACT').toUpperCase();
   } else if (dom.contactSelector && dom.contactSelector.value === '__new__') {
-    label.textContent = '＋ NEW CONTACT';
+    label.textContent = '+ NEW CONTACT';
   } else {
     label.textContent = '— SELECT CONTACT —';
   }
+
+  dropdown.setAttribute('role', 'listbox');
 
   // Populate dropdown items
   dropdown.innerHTML = '';
@@ -1301,16 +1414,13 @@ function renderCustomContactDropdown(contacts) {
     const isSel = dom.contactSelector && dom.contactSelector.value === val;
     item.className = `custom-select-item ${isSel ? 'selected' : ''}`;
     item.dataset.value = val;
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', isSel ? 'true' : 'false');
+    item.setAttribute('tabindex', '-1');
     item.innerHTML = `<span>${escapeHtml(text)}</span>${isSel ? '<span style="color:var(--accent);">✓</span>' : ''}`;
     item.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (dom.contactSelector) {
-        dom.contactSelector.value = val;
-        dom.contactSelector.dispatchEvent(new Event('change'));
-      }
-      dropdown.classList.add('hidden');
-      trigger.classList.remove('open');
-      renderCustomContactDropdown(state.contacts);
+      selectDropdownOption(val);
     });
     dropdown.appendChild(item);
   };
@@ -1321,6 +1431,7 @@ function renderCustomContactDropdown(contacts) {
   if (contacts && contacts.length > 0) {
     const divider = document.createElement('div');
     divider.className = 'custom-select-divider';
+    divider.setAttribute('role', 'separator');
     dropdown.appendChild(divider);
 
     contacts.forEach((c) => {
@@ -1334,20 +1445,91 @@ function initCustomContactDropdown() {
   const dropdown = document.getElementById('customContactDropdown');
   if (!trigger || !dropdown) return;
 
+  trigger.setAttribute('aria-expanded', 'false');
+
+  const openDropdown = () => {
+    document.querySelectorAll('.custom-select-dropdown').forEach(d => d.classList.add('hidden'));
+    document.querySelectorAll('.custom-select-trigger').forEach(t => {
+      t.classList.remove('open');
+      t.setAttribute('aria-expanded', 'false');
+    });
+    dropdown.classList.remove('hidden');
+    trigger.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
+
+    // Focus selected option or first option
+    const selected = dropdown.querySelector('.custom-select-item.selected') || dropdown.querySelector('.custom-select-item');
+    if (selected) selected.focus();
+  };
+
+  const closeDropdown = () => {
+    dropdown.classList.add('hidden');
+    trigger.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+  };
+
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
     const isHidden = dropdown.classList.contains('hidden');
-    document.querySelectorAll('.custom-select-dropdown').forEach(d => d.classList.add('hidden'));
-    document.querySelectorAll('.custom-select-trigger').forEach(t => t.classList.remove('open'));
     if (isHidden) {
-      dropdown.classList.remove('hidden');
-      trigger.classList.add('open');
+      openDropdown();
+    } else {
+      closeDropdown();
+    }
+  });
+
+  // Keyboard navigation on trigger
+  trigger.addEventListener('keydown', (e) => {
+    if (dropdown.classList.contains('hidden')) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        openDropdown();
+      }
+    } else {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeDropdown();
+        trigger.focus();
+      }
+    }
+  });
+
+  // Keyboard navigation inside dropdown listbox
+  dropdown.addEventListener('keydown', (e) => {
+    const items = Array.from(dropdown.querySelectorAll('.custom-select-item'));
+    if (!items.length) return;
+    const currentIndex = items.indexOf(document.activeElement);
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
+      items[nextIndex].focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+      items[prevIndex].focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0].focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1].focus();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (currentIndex !== -1) {
+        selectDropdownOption(items[currentIndex].dataset.value);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeDropdown();
+      trigger.focus();
+    } else if (e.key === 'Tab') {
+      closeDropdown();
     }
   });
 
   document.addEventListener('click', () => {
-    dropdown.classList.add('hidden');
-    trigger.classList.remove('open');
+    closeDropdown();
   });
 
   if (dom.contactSelector) {
@@ -1504,6 +1686,7 @@ function bindEvents() {
     dom.proModeBtn.addEventListener('click', () => {
       state.proMode = !state.proMode;
       dom.proModeBtn.classList.toggle('active', state.proMode);
+      dom.proModeBtn.setAttribute('aria-pressed', String(state.proMode));
       dom.proModeBtn.textContent = state.proMode ? 'PRO [ON]' : 'PRO [OFF]';
       showToast(state.proMode ? 'PRO MODE ENGAGED' : 'PRO MODE DISENGAGED', 'info');
 
@@ -1512,13 +1695,16 @@ function bindEvents() {
         if (state.proMode) {
           dom.marginNoteRow.classList.remove('hidden');
           dom.noteToggleBtn.classList.add('active');
+          dom.noteToggleBtn.setAttribute('aria-pressed', 'true');
           if (dom.steeringInput) {
             dom.steeringInput.focus();
           }
         } else if (!dom.steeringInput?.value.trim()) {
           dom.marginNoteRow.classList.add('hidden');
           dom.noteToggleBtn.classList.remove('active');
+          dom.noteToggleBtn.setAttribute('aria-pressed', 'false');
         }
+        updateNoteButtonIndicator();
       }
     });
   }
@@ -1527,9 +1713,11 @@ function bindEvents() {
   if (dom.noteToggleBtn && dom.marginNoteRow) {
     dom.noteToggleBtn.addEventListener('click', () => {
       dom.marginNoteRow.classList.toggle('hidden');
-      dom.noteToggleBtn.classList.toggle('active', !dom.marginNoteRow.classList.contains('hidden'));
+      const isOpen = !dom.marginNoteRow.classList.contains('hidden');
+      dom.noteToggleBtn.classList.toggle('active', isOpen);
+      dom.noteToggleBtn.setAttribute('aria-pressed', String(isOpen));
       updateNoteButtonIndicator();
-      if (!dom.marginNoteRow.classList.contains('hidden')) {
+      if (isOpen) {
         dom.steeringInput.focus();
       }
     });
@@ -1554,6 +1742,7 @@ function bindEvents() {
     dom.marksToggleBtn.addEventListener('click', () => {
       state.showMarks = !state.showMarks;
       dom.marksToggleBtn.classList.toggle('active', state.showMarks);
+      dom.marksToggleBtn.setAttribute('aria-pressed', String(state.showMarks));
       if (state.currentDraft) {
         renderDraftContent(state.currentDraft);
       }
@@ -1618,8 +1807,12 @@ function bindEvents() {
     dom.stageSegmentedGroup.addEventListener('click', (e) => {
       const btn = e.target.closest('.segmented-btn');
       if (!btn) return;
-      dom.stageSegmentedGroup.querySelectorAll('.segmented-btn').forEach(b => b.classList.remove('active'));
+      dom.stageSegmentedGroup.querySelectorAll('.segmented-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
       dom.contactStage.value = btn.dataset.val;
       dom.contactStage.dispatchEvent(new Event('change'));
     });
@@ -1629,8 +1822,12 @@ function bindEvents() {
     dom.goalSegmentedGroup.addEventListener('click', (e) => {
       const btn = e.target.closest('.segmented-btn');
       if (!btn) return;
-      dom.goalSegmentedGroup.querySelectorAll('.segmented-btn').forEach(b => b.classList.remove('active'));
+      dom.goalSegmentedGroup.querySelectorAll('.segmented-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
       dom.contactGoal.value = btn.dataset.val;
       dom.contactGoal.dispatchEvent(new Event('change'));
     });
@@ -1670,6 +1867,7 @@ function bindEvents() {
     dom.watcherFullAutoBtn.addEventListener('click', () => {
       state.watcherFullAuto = !state.watcherFullAuto;
       dom.watcherFullAutoBtn.classList.toggle('active', state.watcherFullAuto);
+      dom.watcherFullAutoBtn.setAttribute('aria-pressed', String(state.watcherFullAuto));
       dom.watcherFullAutoBtn.textContent = state.watcherFullAuto ? 'AUTO-SEND [ON]' : 'AUTO-SEND [OFF]';
       showToast(state.watcherFullAuto ? 'FULL AUTO ENGAGED (AUTO-DISPATCH DMs)' : 'AUTO-SEND DISABLED', 'info');
     });
@@ -1700,10 +1898,56 @@ function bindEvents() {
     });
   }
 
+  // Ingest Source Options Buttons
+  const ingestOptions = $$('.ingest-option');
+  if (ingestOptions.length > 0) {
+    ingestOptions.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        ingestOptions.forEach(b => {
+          b.classList.remove('selected');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        btn.classList.add('selected');
+        btn.setAttribute('aria-pressed', 'true');
+        state.ingestSource = btn.dataset.source;
+      });
+    });
+  }
+
   // Modals & Data management
-  if (dom.ingestBtn) dom.ingestBtn.addEventListener('click', () => showModal('ingestModal'));
-  if (dom.editSoulBtn) dom.editSoulBtn.addEventListener('click', async () => {
-    showModal('soulModal');
+  if (dom.ingestBtn) dom.ingestBtn.addEventListener('click', (e) => showModal('ingestModal', e.currentTarget));
+  if (dom.startIngestBtn) {
+    dom.startIngestBtn.addEventListener('click', async () => {
+      const selectedOpt = document.querySelector('.ingest-option.selected');
+      const source = selectedOpt?.dataset.source || state.ingestSource || 'instagram';
+      const userName = dom.ingestUserName ? dom.ingestUserName.value.trim() : '';
+      const path = dom.ingestPath ? dom.ingestPath.value.trim() : '';
+      if (!userName) {
+        showToast('Please provide your display name.', 'warning');
+        if (dom.ingestUserName) dom.ingestUserName.focus();
+        return;
+      }
+      try {
+        if (dom.ingestProgressContainer) dom.ingestProgressContainer.classList.remove('hidden');
+        if (dom.ingestProgressBar) dom.ingestProgressBar.style.width = '30%';
+        if (dom.ingestProgressText) dom.ingestProgressText.textContent = 'INGESTING ARCHIVE...';
+        showToast('Ingesting archive...', 'info');
+        await api.ingest(source, userName, path);
+        if (dom.ingestProgressBar) dom.ingestProgressBar.style.width = '100%';
+        if (dom.ingestProgressText) dom.ingestProgressText.textContent = 'COMPLETE';
+        showToast('Ingest complete.', 'success');
+        setTimeout(() => {
+          hideModal('ingestModal');
+          if (dom.ingestProgressContainer) dom.ingestProgressContainer.classList.add('hidden');
+        }, 1000);
+      } catch (err) {
+        showToast(`Ingest failed: ${err.message}`, 'error');
+        if (dom.ingestProgressContainer) dom.ingestProgressContainer.classList.add('hidden');
+      }
+    });
+  }
+  if (dom.editSoulBtn) dom.editSoulBtn.addEventListener('click', async (e) => {
+    showModal('soulModal', e.currentTarget);
     dom.soulEditor.value = 'Loading...';
     try {
       const data = await api.getSoul();
@@ -1712,8 +1956,8 @@ function bindEvents() {
       dom.soulEditor.value = `Error: ${err.message}`;
     }
   });
-  if (dom.viewStyleBtn) dom.viewStyleBtn.addEventListener('click', async () => {
-    showModal('styleModal');
+  if (dom.viewStyleBtn) dom.viewStyleBtn.addEventListener('click', async (e) => {
+    showModal('styleModal', e.currentTarget);
     dom.styleContent.textContent = 'Loading...';
     try {
       const data = await api.getStyle();
@@ -1737,29 +1981,49 @@ function bindEvents() {
 
   // Keyboard Shortcuts
   document.addEventListener('keydown', (e) => {
-    // Ctrl+Enter → Send
-    if (e.ctrlKey && e.key === 'Enter') {
+    // Alt+T → Toggle theme
+    if (e.altKey && (e.key === 't' || e.key === 'T')) {
       e.preventDefault();
-      handleSend();
+      toggleTheme();
+      return;
     }
 
-    // Ctrl+Shift+C → Copy/Approve draft
-    if (e.ctrlKey && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+    // Ignore global action shortcuts if a modal is open
+    const isModalOpen = Boolean(document.querySelector('.modal-overlay:not(.hidden)'));
+    if (isModalOpen) return;
+
+    const isCtrl = e.ctrlKey || e.metaKey;
+
+    // Ctrl/Cmd + Shift + Enter → Copy/Approve draft
+    if (isCtrl && e.shiftKey && e.key === 'Enter') {
       e.preventDefault();
       if (state.currentDraft) {
         handleApprove();
       }
+      return;
     }
 
-    // Ctrl+K → Toggle Note row
-    if (e.ctrlKey && (e.key === 'k' || e.key === 'K')) {
+    // Ctrl/Cmd + Enter → Send
+    if (isCtrl && !e.shiftKey && e.key === 'Enter') {
       e.preventDefault();
-      if (dom.marginNoteRow) {
+      handleSend();
+      return;
+    }
+
+    // Ctrl/Cmd + K → Toggle Note row
+    if (isCtrl && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      if (dom.marginNoteRow && dom.noteToggleBtn) {
         dom.marginNoteRow.classList.toggle('hidden');
-        if (!dom.marginNoteRow.classList.contains('hidden')) {
+        const isOpen = !dom.marginNoteRow.classList.contains('hidden');
+        dom.noteToggleBtn.classList.toggle('active', isOpen);
+        dom.noteToggleBtn.setAttribute('aria-pressed', String(isOpen));
+        updateNoteButtonIndicator();
+        if (isOpen && dom.steeringInput) {
           dom.steeringInput.focus();
         }
       }
+      return;
     }
   });
 }
