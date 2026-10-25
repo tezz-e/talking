@@ -83,11 +83,36 @@
       --tk-glass-surface: rgba(23, 21, 15, 0.85);
     }
 
-    /* Box model resets */
+    /* Box model resets & Craft Scrollbar */
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--tk-hairline-strong) transparent;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--tk-hairline-strong);
+      border-radius: 3px;
+      transition: background 160ms ease;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--tk-text-muted);
+    }
+
+    ::-webkit-scrollbar-thumb:active {
+      background: var(--tk-accent);
     }
 
     /* Floating Launch Pill: 2px radius rectangle with mono TALK Alt+D and block caret */

@@ -783,12 +783,15 @@ function showDraft(draft, confidence, variants = [], bubbles = []) {
         btn.addEventListener('click', () => {
           dom.draftVariants.querySelectorAll('.variant-chip').forEach((b) => b.classList.remove('active'));
           btn.classList.add('active');
+          updateVariantSlider(btn);
           state.currentDraft = v.text;
           state.currentDraftRaw = v.text;
           renderDraftContent(v.text, v.bubbles);
         });
         dom.draftVariants.appendChild(btn);
       });
+      const activeBtn = dom.draftVariants.querySelector('.variant-chip.active') || dom.draftVariants.querySelector('.variant-chip');
+      requestAnimationFrame(() => updateVariantSlider(activeBtn));
       dom.draftVariants.classList.remove('hidden');
     } else {
       dom.draftVariants.classList.add('hidden');
@@ -809,6 +812,34 @@ function showDraft(draft, confidence, variants = [], bubbles = []) {
   // Auto-scroll chat so the last received message remains 100% visible
   requestAnimationFrame(() => {
     dom.messageHistory.scrollTop = dom.messageHistory.scrollHeight;
+  });
+}
+
+function updateVariantSlider(activeBtn) {
+  if (!activeBtn || !dom.draftVariants) return;
+  let indicator = dom.draftVariants.querySelector('.variant-sliding-indicator');
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.className = 'variant-sliding-indicator';
+    dom.draftVariants.appendChild(indicator);
+  }
+  const left = activeBtn.offsetLeft;
+  const width = activeBtn.offsetWidth;
+  indicator.style.width = `${width}px`;
+  indicator.style.transform = `translateX(${left}px)`;
+}
+
+function initSpotlightEffects() {
+  const cards = document.querySelectorAll('.draft-panel, .composer-section, .sidebar-panel, .header');
+  cards.forEach((card) => {
+    card.classList.add('spotlight-card');
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      card.style.setProperty('--mouse-x', `${x}px`);
+      card.style.setProperty('--mouse-y', `${y}px`);
+    });
   });
 }
 
@@ -1311,6 +1342,7 @@ async function init() {
   applyTheme(state.theme);
   bindEvents();
   updateStats();
+  initSpotlightEffects();
 
   try {
     const contacts = await api.getContacts();

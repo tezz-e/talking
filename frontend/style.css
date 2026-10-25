@@ -58,6 +58,72 @@ html, body {
   text-transform: var(--machine-transform) !important;
 }
 
+/* ---------- Custom Craft Scrollbar (React Bits / Emil Kowalski Precision) ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: background 180ms var(--spring-fluid);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--accent);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ---------- React Bits Spotlight Card (Cursor Tracking Refractive Sheen) ---------- */
+.spotlight-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    380px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+    var(--spotlight-color),
+    transparent 65%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 280ms var(--spring-fluid);
+  z-index: 1;
+}
+
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+.spotlight-card > * {
+  position: relative;
+  z-index: 2;
+}
+
 /* ---------- Typography & Base Elements ---------- */
 p, span, div {
   color: inherit;
@@ -529,6 +595,18 @@ input:focus, select:focus, textarea:focus {
   gap: 4px;
   border-bottom: 1px solid var(--hairline-subtle);
   padding-bottom: 6px;
+  position: relative;
+}
+
+.variant-sliding-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: transform 220ms var(--spring-snappy), width 220ms var(--spring-snappy);
+  pointer-events: none;
+  border-radius: 1px;
 }
 
 .variant-chip {
