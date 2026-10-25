@@ -2187,3 +2187,32 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
+@media (max-width: 600px) {
+  .composer-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .composer-textarea-wrapper {
+    flex: 1 1 100%;
+    order: 1;
+    width: 100%;
+  }
+
+  .btn-attach,
+  .btn-pro-toggle,
+  .btn-note-toggle {
+    order: 2;
+  }
+
+  .btn-send {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .composer-hint-row {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
