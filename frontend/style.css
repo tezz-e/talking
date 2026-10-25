@@ -3,11 +3,6 @@
    Visual Identity: Print Proofs, Typography & Editorial Precision
    ============================================================ */
 
-@import url('./tokens.css');
-
-/* Pre-load fonts with humane serif and high-legibility mono */
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400&family=Geist+Mono:wght@400;500;600&display=swap');
-
 /* ---------- Global Reset & Body ---------- */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -28,14 +23,7 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Zero shadows and blur across the application */
-* {
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* Focus Ring: Single Accent (#FF4F1F) 1px outline */
+/* Focus Ring: Single Accent (#FF4F1F) 2px outline */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -75,7 +63,7 @@ html, body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--hairline-strong);
-  border-radius: 3px;
+  border-radius: var(--radius-chrome);
   border: 1px solid transparent;
   background-clip: padding-box;
   transition: background 180ms var(--spring-fluid);
@@ -91,36 +79,6 @@ html, body {
 
 ::-webkit-scrollbar-corner {
   background: transparent;
-}
-
-/* ---------- React Bits Spotlight Card (Cursor Tracking Refractive Sheen) ---------- */
-.spotlight-card {
-  position: relative;
-}
-
-.spotlight-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    380px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
-    var(--spotlight-color),
-    transparent 65%
-  );
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 280ms var(--spring-fluid);
-  z-index: 1;
-}
-
-.spotlight-card:hover::before {
-  opacity: 1;
-}
-
-.spotlight-card > * {
-  position: relative;
-  z-index: 2;
 }
 
 /* ---------- Typography & Base Elements ---------- */
@@ -156,23 +114,22 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* ---------- Apple HIG & Glass Form Elements ---------- */
+/* ---------- Form Elements ---------- */
 input, select, textarea {
   font-family: var(--font-voice);
   color: var(--text-main);
   background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
-  border-radius: 4px;
+  border-radius: var(--radius-chrome);
   box-sizing: border-box;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
-  transition: border-color 160ms var(--spring-snappy), box-shadow 160ms var(--spring-snappy), background 160ms ease, min-height 240ms var(--spring-fluid);
+  transition: border-color 160ms var(--spring-snappy), background 160ms ease, min-height 240ms var(--spring-fluid);
 }
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
   background: var(--bg-surface);
-  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.14);
-  outline: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* Full Apple-Style Form Input */
@@ -187,21 +144,20 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-main);
   background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
-  border-radius: 4px;
+  border-radius: var(--radius-chrome);
   box-sizing: border-box;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
   transition: all 180ms var(--spring-snappy);
 }
 
 .form-input:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: var(--hairline-strong);
 }
 
 .form-input:focus {
   border-color: var(--accent);
   background: var(--bg-surface);
-  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.24), inset 0 1px 2px rgba(0, 0, 0, 0.14);
-  outline: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* Expanding Text Field Component (Apple Fluid Spring Expansion) */
@@ -216,7 +172,7 @@ input:focus, select:focus, textarea:focus {
   font-family: var(--font-machine);
   font-size: 11.5px;
   letter-spacing: 0.02em;
-  transition: min-height 260ms var(--spring-fluid), border-color 160ms var(--spring-snappy), box-shadow 160ms var(--spring-snappy), background 160ms ease;
+  transition: min-height 260ms var(--spring-fluid), border-color 160ms var(--spring-snappy), background 160ms ease;
 }
 
 .expanding-input:focus {
@@ -224,7 +180,8 @@ input:focus, select:focus, textarea:focus {
   overflow-y: auto;
   border-color: var(--accent);
   background: var(--bg-surface);
-  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.24), inset 0 1px 2px rgba(0, 0, 0, 0.14);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .input-expandable-wrapper {
@@ -232,6 +189,7 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   align-items: flex-start;
   width: 100%;
+  border-radius: var(--radius-chrome);
 }
 
 .btn-input-action {
@@ -247,7 +205,7 @@ input:focus, select:focus, textarea:focus {
   justify-content: center;
   background: transparent;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--radius-chrome);
   color: var(--text-muted);
   cursor: pointer;
   transition: color 140ms ease, background 140ms ease, transform 120ms var(--spring-snappy);
@@ -256,7 +214,7 @@ input:focus, select:focus, textarea:focus {
 
 .btn-input-action:hover {
   color: var(--accent);
-  background: var(--surface-translucent);
+  background: var(--bg-surface-subtle);
   transform: scale(1.08);
 }
 
@@ -271,8 +229,8 @@ input:focus, select:focus, textarea:focus {
 .app-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
+  height: 100dvh;
+  width: 100%;
   background: var(--bg-app);
   overflow: hidden;
 }
@@ -285,7 +243,6 @@ input:focus, select:focus, textarea:focus {
   padding: 8px 16px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   flex-shrink: 0;
   gap: 16px;
   min-height: 48px;
@@ -361,7 +318,6 @@ input:focus, select:focus, textarea:focus {
   padding: 6px 12px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-main);
   cursor: pointer;
@@ -372,13 +328,12 @@ input:focus, select:focus, textarea:focus {
   justify-content: space-between;
   gap: 8px;
   user-select: none;
-  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, box-shadow 140ms ease;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease;
 }
 
 .custom-select-trigger:hover {
   border-color: var(--hairline-strong);
   transform: translateY(-1px);
-  box-shadow: var(--glass-specular-active);
 }
 
 .custom-select-trigger:active {
@@ -403,8 +358,7 @@ input:focus, select:focus, textarea:focus {
   max-width: 300px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--hairline-strong);
-  box-shadow: var(--glass-specular), 0 12px 36px rgba(0, 0, 0, 0.35);
-  border-radius: 4px;
+  border-radius: var(--radius-chrome);
   z-index: 1000;
   padding: 4px;
   display: flex;
@@ -435,7 +389,7 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: var(--machine-tracking);
   text-transform: uppercase;
   padding: 7px 10px;
-  border-radius: 2px;
+  border-radius: var(--radius-chrome);
   color: var(--text-main);
   cursor: pointer;
   display: flex;
@@ -520,7 +474,6 @@ input:focus, select:focus, textarea:focus {
   padding: 4px 10px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-main);
   display: flex;
@@ -528,13 +481,12 @@ input:focus, select:focus, textarea:focus {
   gap: 6px;
   height: 30px;
   cursor: pointer;
-  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, box-shadow 140ms ease;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease;
 }
 
 .theme-toggle-btn:hover {
   border-color: var(--hairline-strong);
   transform: translateY(-1px);
-  box-shadow: var(--glass-specular-active);
 }
 
 .theme-toggle-btn:active {
@@ -630,7 +582,7 @@ input:focus, select:focus, textarea:focus {
   word-break: break-word;
 }
 
-/* Received: Outlined bubbles with 2px bottom-left tail corner & Bouncy Physics */
+/* Received: Outlined bubbles with 2px bottom-left tail corner */
 .message-incoming .message-bubble {
   background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
@@ -640,25 +592,11 @@ input:focus, select:focus, textarea:focus {
   font-family: var(--font-voice);
   font-size: var(--voice-size);
   line-height: var(--voice-line);
-  box-shadow: var(--glass-specular);
-  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 220ms ease,
-              border-color 160ms ease;
-  animation: bubbleBounceIn 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  transition: border-color 160ms ease;
   transform-origin: bottom left;
 }
 
-.message-incoming .message-bubble:hover {
-  transform: translateY(-2px) scale(1.015);
-  box-shadow: var(--glass-specular-active), 0 4px 14px rgba(0, 0, 0, 0.08);
-  border-color: var(--hairline-strong);
-}
-
-.message-incoming .message-bubble:active {
-  transform: scale(0.97);
-}
-
-/* Sent: Solid ink bubbles with 2px bottom-right tail corner & Bouncy Physics */
+/* Sent: Solid ink bubbles with 2px bottom-right tail corner */
 .message-outgoing .message-bubble {
   background: var(--ink);
   color: var(--paper);
@@ -668,20 +606,16 @@ input:focus, select:focus, textarea:focus {
   font-family: var(--font-voice);
   font-size: var(--voice-size);
   line-height: var(--voice-line);
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.22), 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 220ms ease;
-  animation: bubbleBounceInRight 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
   transform-origin: bottom right;
 }
 
-.message-outgoing .message-bubble:hover {
-  transform: translateY(-2px) scale(1.015);
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.3), 0 6px 18px rgba(0, 0, 0, 0.22);
+/* Bounce entrance applied strictly to live appended bubbles */
+.message-animate-in.message-incoming .message-bubble {
+  animation: bubbleBounceIn 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
-.message-outgoing .message-bubble:active {
-  transform: scale(0.97);
+.message-animate-in.message-outgoing .message-bubble {
+  animation: bubbleBounceInRight 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
 @keyframes bubbleBounceIn {
@@ -859,7 +793,7 @@ input:focus, select:focus, textarea:focus {
   background: var(--accent);
   transition: transform 220ms var(--spring-snappy), width 220ms var(--spring-snappy);
   pointer-events: none;
-  border-radius: 1px;
+  border-radius: var(--radius-chrome);
 }
 
 .variant-chip {
@@ -944,7 +878,6 @@ input:focus, select:focus, textarea:focus {
   max-width: 80%;
   border: 1px dashed var(--accent);
   background: var(--bg-app);
-  box-shadow: var(--glass-specular);
   color: var(--text-main);
   border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble-tail) var(--radius-bubble);
   padding: 8px 14px;
@@ -952,7 +885,7 @@ input:focus, select:focus, textarea:focus {
   align-items: baseline;
   gap: 8px;
   animation: dashboardBubbleCascade 240ms var(--spring-fluid) backwards;
-  transition: transform 180ms var(--spring-snappy), border-color 140ms ease, box-shadow 180ms ease;
+  transition: transform 180ms var(--spring-snappy), border-color 140ms ease;
 }
 
 @keyframes dashboardBubbleCascade {
@@ -969,7 +902,6 @@ input:focus, select:focus, textarea:focus {
 .dashboard-bubble-item:hover {
   border-color: var(--text-main);
   transform: translateY(-1px);
-  box-shadow: var(--glass-specular-active);
 }
 
 .dashboard-bubble-item:active {
@@ -1034,12 +966,11 @@ input:focus, select:focus, textarea:focus {
   gap: 12px;
 }
 
-/* Primary Action: Solid Ink Button with Paper Text & Specular Bevel */
+/* Primary Action: Solid Ink Button with Paper Text */
 .btn-approve {
   background: var(--ink) !important;
   color: var(--paper) !important;
   border: 1px solid var(--ink) !important;
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.28), 0 2px 8px rgba(0, 0, 0, 0.16) !important;
   border-radius: var(--radius-chrome);
   font-family: var(--font-machine);
   font-size: var(--machine-size);
@@ -1053,13 +984,12 @@ input:focus, select:focus, textarea:focus {
   height: 34px;
   min-height: 34px;
   cursor: pointer;
-  transition: transform 140ms var(--spring-snappy), opacity 140ms ease, box-shadow 140ms ease !important;
+  transition: transform 140ms var(--spring-snappy), opacity 140ms ease !important;
 }
 
 .btn-approve:hover:not(:disabled) {
   opacity: 0.94;
   transform: translateY(-1px);
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.38), 0 4px 14px rgba(0, 0, 0, 0.2) !important;
 }
 
 .btn-approve:active:not(:disabled) {
@@ -1073,7 +1003,7 @@ input:focus, select:focus, textarea:focus {
   font-weight: 600;
   letter-spacing: 0.06em;
   padding: 2px 6px;
-  border: 1px solid var(--border-hairline);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-chrome);
   color: var(--text-muted);
   background: transparent;
@@ -1102,16 +1032,14 @@ input:focus, select:focus, textarea:focus {
   justify-content: center;
   background: var(--bg-surface);
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   color: var(--text-main);
   border-radius: var(--radius-chrome);
-  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease;
 }
 
 .btn-icon-editorial:hover:not(:disabled) {
   border-color: var(--hairline-strong);
   transform: translateY(-1px);
-  box-shadow: var(--glass-specular-active);
 }
 
 .btn-icon-editorial:active:not(:disabled) {
@@ -1187,16 +1115,16 @@ input:focus, select:focus, textarea:focus {
   padding: 8px 12px;
   min-height: 40px;
   border: 1px solid var(--hairline);
-  border-radius: 4px;
+  border-radius: var(--radius-chrome);
   background: var(--bg-surface-subtle);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
   transition: all 180ms var(--spring-snappy);
 }
 
 .margin-note-row:focus-within {
   border-color: var(--accent);
   background: var(--bg-surface);
-  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .margin-note-label {
@@ -1219,7 +1147,6 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: var(--machine-tracking);
   color: var(--text-main);
   outline: none;
-  box-shadow: none;
 }
 
 .btn-clear-note {
@@ -1243,6 +1170,7 @@ input:focus, select:focus, textarea:focus {
 .composer-textarea-wrapper {
   flex: 1;
   position: relative;
+  border-radius: var(--radius-chrome);
 }
 
 #messageInput {
@@ -1251,7 +1179,6 @@ input:focus, select:focus, textarea:focus {
   max-height: 180px;
   background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   padding: 11px 14px;
   font-family: var(--font-voice);
@@ -1261,12 +1188,13 @@ input:focus, select:focus, textarea:focus {
   resize: none;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 160ms var(--spring-fluid), box-shadow 160ms var(--spring-fluid);
+  transition: border-color 160ms var(--spring-fluid);
 }
 
 #messageInput:focus {
   border-color: var(--accent);
-  box-shadow: var(--glass-specular), 0 0 0 1px var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* Visually Hidden Native File Input */
@@ -1294,18 +1222,16 @@ input:focus, select:focus, textarea:focus {
   justify-content: center;
   background: var(--bg-surface);
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-muted);
   cursor: pointer;
-  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, color 140ms ease;
 }
 
 .btn-attach:hover {
   border-color: var(--hairline-strong);
   color: var(--text-main);
   transform: translateY(-1px);
-  box-shadow: var(--glass-specular-active);
 }
 
 .btn-attach:active {
@@ -1323,7 +1249,6 @@ input:focus, select:focus, textarea:focus {
   min-height: 44px;
   background: var(--bg-surface);
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-muted);
   display: flex;
@@ -1331,12 +1256,11 @@ input:focus, select:focus, textarea:focus {
   gap: 6px;
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease;
 }
 
 .btn-pro-toggle:hover {
   transform: translateY(-1px);
-  box-shadow: var(--glass-specular-active);
 }
 
 .btn-pro-toggle:active {
@@ -1360,7 +1284,6 @@ input:focus, select:focus, textarea:focus {
   min-height: 44px;
   background: var(--bg-surface);
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-muted);
   display: flex;
@@ -1368,12 +1291,11 @@ input:focus, select:focus, textarea:focus {
   gap: 6px;
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease;
 }
 
 .btn-note-toggle:hover {
   transform: translateY(-1px);
-  box-shadow: var(--glass-specular-active);
 }
 
 .btn-note-toggle:active {
@@ -1412,16 +1334,14 @@ input:focus, select:focus, textarea:focus {
   background: var(--ink);
   color: var(--paper);
   border: 1px solid var(--ink);
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.28), 0 2px 8px rgba(0, 0, 0, 0.16) !important;
   border-radius: var(--radius-chrome);
   cursor: pointer;
-  transition: transform 140ms var(--spring-snappy), opacity 140ms ease, box-shadow 140ms ease;
+  transition: transform 140ms var(--spring-snappy), opacity 140ms ease;
 }
 
 .btn-send:hover:not(:disabled) {
   opacity: 0.94;
   transform: translateY(-1px);
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.38), 0 4px 14px rgba(0, 0, 0, 0.2) !important;
 }
 
 .btn-send:active:not(:disabled) {
@@ -1461,7 +1381,6 @@ input:focus, select:focus, textarea:focus {
 .sidebar-panel {
   background: var(--bg-app);
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   padding: 16px;
   display: flex;
@@ -1495,18 +1414,18 @@ input:focus, select:focus, textarea:focus {
   line-height: 24px;
   background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
-  border-radius: 4px;
+  border-radius: var(--radius-chrome);
   padding: 8px 12px;
   color: var(--text-main);
   box-sizing: border-box;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
   transition: all 160ms var(--spring-snappy);
 }
 
 .contact-name-input:focus {
   border-color: var(--accent);
   background: var(--bg-surface);
-  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* Segmented Controls for Stage & Goal with Clear Boundaries & Bouncy Physics */
@@ -1526,8 +1445,7 @@ input:focus, select:focus, textarea:focus {
   padding: 6px !important;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--hairline-strong);
-  box-shadow: var(--glass-specular);
-  border-radius: 4px;
+  border-radius: var(--radius-chrome);
 }
 
 .segmented-btn {
@@ -1537,7 +1455,7 @@ input:focus, select:focus, textarea:focus {
   text-transform: uppercase;
   padding: 8px 6px;
   border: 1px solid var(--hairline);
-  border-radius: 3px;
+  border-radius: var(--radius-chrome);
   background: var(--bg-app);
   color: var(--text-muted);
   min-height: 36px;
@@ -1547,12 +1465,10 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   font-weight: 500;
-  box-shadow: var(--glass-specular);
   transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
               background 140ms ease,
               border-color 140ms ease,
-              color 140ms ease,
-              box-shadow 180ms ease;
+              color 140ms ease;
 }
 
 .segmented-btn:hover:not(.active) {
@@ -1560,7 +1476,6 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--hairline-strong);
   background: var(--bg-surface-elevated);
   transform: translateY(-1px) scale(1.02);
-  box-shadow: var(--glass-specular-active);
 }
 
 .segmented-btn:active {
@@ -1572,7 +1487,6 @@ input:focus, select:focus, textarea:focus {
   color: var(--paper) !important;
   border-color: var(--ink) !important;
   font-weight: 700;
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
   animation: optionBounce 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
   transform: scale(1.02);
 }
@@ -1597,8 +1511,7 @@ input:focus, select:focus, textarea:focus {
   padding: 10px 12px;
   background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
-  border-radius: 4px;
+  border-radius: var(--radius-chrome);
   color: var(--text-main);
   font-family: var(--font-machine);
   font-size: 11.5px;
@@ -1607,14 +1520,15 @@ input:focus, select:focus, textarea:focus {
   resize: vertical;
   outline: none;
   box-sizing: border-box;
-  transition: min-height 260ms var(--spring-fluid), border-color 160ms var(--spring-snappy), box-shadow 160ms var(--spring-snappy), background 160ms ease;
+  transition: min-height 260ms var(--spring-fluid), border-color 160ms var(--spring-snappy), background 160ms ease;
 }
 
 .dossier-textarea:focus {
   min-height: 84px;
   border-color: var(--accent);
   background: var(--bg-surface);
-  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.14);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* Tag Chips for Interests */
@@ -1632,7 +1546,6 @@ input:focus, select:focus, textarea:focus {
   text-transform: uppercase;
   padding: 3px 8px;
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   background: var(--bg-surface);
   color: var(--text-main);
@@ -1715,7 +1628,6 @@ input:focus, select:focus, textarea:focus {
 
 .fact-item {
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   padding: 8px 10px;
   background: var(--bg-surface);
@@ -1724,12 +1636,11 @@ input:focus, select:focus, textarea:focus {
   justify-content: space-between;
   gap: 8px;
   animation: cardSlideIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 180ms ease, border-color 140ms ease;
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), border-color 140ms ease;
 }
 
 .fact-item:hover {
   transform: translateY(-1px) scale(1.01);
-  box-shadow: var(--glass-specular-active), 0 4px 12px rgba(0, 0, 0, 0.06);
   border-color: var(--hairline-strong);
 }
 
@@ -1799,9 +1710,8 @@ input:focus, select:focus, textarea:focus {
   font-size: 11.5px;
   background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
-  border-radius: 4px;
+  border-radius: var(--radius-chrome);
   color: var(--text-main);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
   box-sizing: border-box;
   transition: all 160ms var(--spring-snappy);
 }
@@ -1809,7 +1719,8 @@ input:focus, select:focus, textarea:focus {
 .fact-text-input:focus, .fact-cat-select:focus {
   border-color: var(--accent);
   background: var(--bg-surface);
-  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* AI Controls & Mood Selector (Machine Tabs) */
@@ -2066,3 +1977,45 @@ input:focus, select:focus, textarea:focus {
 .hidden {
   display: none !important;
 }
+
+/* ---------- Responsive Breakpoints ---------- */
+@media (max-width: 900px) {
+  html, body {
+    overflow-y: auto;
+    height: auto;
+  }
+
+  .app-container {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .header {
+    flex-wrap: wrap;
+    height: auto;
+    gap: 8px;
+    padding: 10px 16px;
+  }
+
+  .main-content {
+    flex-direction: column;
+    overflow: visible;
+    height: auto;
+  }
+
+  .chat-panel {
+    height: 70vh;
+    min-height: 500px;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    border-left: none;
+    overflow-y: visible !important;
+  }
+}
+

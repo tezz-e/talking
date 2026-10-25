@@ -26,7 +26,7 @@ const state = {
   isEditing: false,
   ingestSource: 'instagram',
   lastIncomingMessage: null,
-  theme: localStorage.getItem('talking_theme') || 'light',
+  theme: localStorage.getItem('talking_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   watcherRunning: false,
   watcherFullAuto: false,
   watcherPollInterval: null
@@ -656,7 +656,7 @@ function appendMessage(msg) {
 
   const row = document.createElement('div');
   const isOutgoing = msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing';
-  row.className = `message ${isOutgoing ? 'message-outgoing' : 'message-incoming'}`;
+  row.className = `message ${isOutgoing ? 'message-outgoing' : 'message-incoming'} message-animate-in`;
 
   const wasEdited = isOutgoing && msg.was_edited;
   const senderName = isOutgoing ? 'YOU' : (state.currentContact?.name?.toUpperCase() || 'THEM');
@@ -974,31 +974,33 @@ function showDraft(draft, confidence, variants = [], bubbles = []) {
 }
 
 function updateVariantSlider(activeBtn) {
-  if (!activeBtn || !dom.draftVariants) return;
+  if (!dom.draftVariants) return;
+  const target = activeBtn || dom.draftVariants.querySelector('.variant-chip.active') || dom.draftVariants.querySelector('.variant-chip');
+  if (!target) return;
   let indicator = dom.draftVariants.querySelector('.variant-sliding-indicator');
   if (!indicator) {
     indicator = document.createElement('div');
     indicator.className = 'variant-sliding-indicator';
     dom.draftVariants.appendChild(indicator);
   }
-  const left = activeBtn.offsetLeft;
-  const width = activeBtn.offsetWidth;
+  const left = target.offsetLeft;
+  const width = target.offsetWidth;
   indicator.style.width = `${width}px`;
   indicator.style.transform = `translateX(${left}px)`;
 }
 
-function initSpotlightEffects() {
-  const cards = document.querySelectorAll('.draft-panel, .composer-section, .sidebar-panel');
-  cards.forEach((card) => {
-    card.classList.add('spotlight-card');
-    card.addEventListener('mousemove', (e) => {
-      const rect = card.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      card.style.setProperty('--mouse-x', `${x}px`);
-      card.style.setProperty('--mouse-y', `${y}px`);
-    });
+// Re-measure variant indicator on font load and container resize
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    updateVariantSlider();
   });
+}
+if (window.ResizeObserver) {
+  const ro = new ResizeObserver(() => {
+    updateVariantSlider();
+  });
+  const variantsContainer = document.getElementById('draftVariants');
+  if (variantsContainer) ro.observe(variantsContainer);
 }
 
 function updateNoteButtonIndicator() {
@@ -2047,7 +2049,6 @@ async function init() {
   applyTheme(state.theme);
   bindEvents();
   updateStats();
-  initSpotlightEffects();
 
   // Check initial Watcher status
   try {

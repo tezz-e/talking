@@ -39,7 +39,7 @@ Typography in Talking strictly separates human communication from machine instru
 - **Surface / Desk (`--bg-surface`, `--bg-desk`)**: `#E8E4DC` / `#F7F5F0`
 - **Hairline Rule (`--hairline`)**: `rgba(22, 20, 15, 0.18)` (18% ink)
 - **Baseline Grid (`--grid-line`)**: `rgba(22, 20, 15, 0.06)` (6% ink, drawn strictly on composer & draft desk)
-- **Liquid Glass Specular (`--glass-specular`)**: `inset 0 1px 1px 0 rgba(255, 255, 255, 0.65), inset 0 -1px 1px 0 rgba(22, 20, 15, 0.06)` (Aceternity UI precision optics)
+- **Flat Editorial Chrome**: Precision planar surfaces with razor-sharp hairline borders, zero drop shadows, and zero gradients.
 - **Text Muted (`--text-muted`)**: `rgba(22, 20, 15, 0.62)`
 - **Sole Accent (`--accent`)**: `#FF4F1F` (proofreader orange-red; used ONLY for caret, revision marks, active tab underline, focus ring)
 
@@ -49,7 +49,7 @@ Typography in Talking strictly separates human communication from machine instru
 - **Text / Paper (`--text-main`, `--ink`)**: `#ECE7DA`
 - **Hairline Rule (`--hairline`)**: `rgba(236, 231, 218, 0.18)`
 - **Baseline Grid (`--grid-line`)**: `rgba(236, 231, 218, 0.06)`
-- **Dark Glass Specular (`--glass-specular`)**: `inset 0 1px 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4)`
+- **Flat Editorial Chrome**: Zero drop shadows, zero specular gradients.
 - **Text Muted (`--text-muted`)**: `rgba(236, 231, 218, 0.62)`
 - **Sole Accent (`--accent`)**: `#FF4F1F`
 

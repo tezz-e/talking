@@ -6,6 +6,17 @@
   <meta name="description" content="Talking — Private reply-drafting desk and conversational proofing studio." />
   <title>Talking — Editorial Proof Desk · AI Texting Autopilot</title>
 
+  <!-- Prevent theme flash by synchronising data-theme immediately -->
+  <script>
+    (function() {
+      try {
+        var saved = localStorage.getItem('talking_theme');
+        var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
