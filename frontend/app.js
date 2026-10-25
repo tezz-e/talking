@@ -1521,8 +1521,26 @@ function bindEvents() {
   }
   if (dom.watcherThreadUrl) {
     dom.watcherThreadUrl.addEventListener('input', () => {
+      dom.watcherThreadUrl.style.height = 'auto';
+      dom.watcherThreadUrl.style.height = Math.max(38, Math.min(dom.watcherThreadUrl.scrollHeight, 140)) + 'px';
       if (state.currentContact) {
         localStorage.setItem(`talking_ig_url_${state.currentContact.id}`, dom.watcherThreadUrl.value.trim());
+      }
+    });
+  }
+
+  const pasteWatcherUrlBtn = document.getElementById('pasteWatcherUrlBtn');
+  if (pasteWatcherUrlBtn) {
+    pasteWatcherUrlBtn.addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text && dom.watcherThreadUrl) {
+          dom.watcherThreadUrl.value = text.trim();
+          dom.watcherThreadUrl.dispatchEvent(new Event('input'));
+          showToast('PASTED FROM CLIPBOARD', 'info');
+        }
+      } catch {
+        dom.watcherThreadUrl?.focus();
       }
     });
   }

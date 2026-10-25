@@ -156,17 +156,108 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* ---------- Apple HIG & Glass Form Elements ---------- */
 input, select, textarea {
   font-family: var(--font-voice);
   color: var(--text-main);
-  background: var(--bg-surface);
+  background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
-  border-radius: var(--radius-chrome);
+  border-radius: 4px;
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
+  transition: border-color 160ms var(--spring-snappy), box-shadow 160ms var(--spring-snappy), background 160ms ease, min-height 240ms var(--spring-fluid);
 }
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.14);
   outline: none;
+}
+
+/* Full Apple-Style Form Input */
+.form-input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  font-family: var(--font-machine);
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: var(--machine-tracking);
+  color: var(--text-main);
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
+  transition: all 180ms var(--spring-snappy);
+}
+
+.form-input:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.form-input:focus {
+  border-color: var(--accent);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.24), inset 0 1px 2px rgba(0, 0, 0, 0.14);
+  outline: none;
+}
+
+/* Expanding Text Field Component (Apple Fluid Spring Expansion) */
+.expanding-input {
+  width: 100%;
+  min-height: 38px;
+  max-height: 140px;
+  padding: 8px 36px 8px 12px;
+  resize: none;
+  overflow-y: hidden;
+  line-height: 20px;
+  font-family: var(--font-machine);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  transition: min-height 260ms var(--spring-fluid), border-color 160ms var(--spring-snappy), box-shadow 160ms var(--spring-snappy), background 160ms ease;
+}
+
+.expanding-input:focus {
+  min-height: 68px;
+  overflow-y: auto;
+  border-color: var(--accent);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.24), inset 0 1px 2px rgba(0, 0, 0, 0.14);
+}
+
+.input-expandable-wrapper {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.btn-input-action {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, transform 120ms var(--spring-snappy);
+  z-index: 2;
+}
+
+.btn-input-action:hover {
+  color: var(--accent);
+  background: var(--surface-translucent);
+  transform: scale(1.08);
 }
 
 /* Monospace inputs/labels */
@@ -1087,10 +1178,19 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  border: 1px solid var(--hairline-subtle);
-  border-radius: var(--radius-chrome);
+  padding: 8px 12px;
+  min-height: 40px;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  background: var(--bg-surface-subtle);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: all 180ms var(--spring-snappy);
+}
+
+.margin-note-row:focus-within {
+  border-color: var(--accent);
   background: var(--bg-surface);
+  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 .margin-note-label {
@@ -1109,9 +1209,11 @@ input:focus, select:focus, textarea:focus {
   border: none;
   font-family: var(--font-machine);
   font-size: 12px;
+  line-height: 20px;
   letter-spacing: var(--machine-tracking);
   color: var(--text-main);
   outline: none;
+  box-shadow: none;
 }
 
 .btn-clear-note {
@@ -1367,18 +1469,23 @@ input:focus, select:focus, textarea:focus {
 
 .contact-name-input {
   font-family: var(--font-voice);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   line-height: 24px;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--hairline);
-  padding: 4px 0;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 8px 12px;
   color: var(--text-main);
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: all 160ms var(--spring-snappy);
 }
 
 .contact-name-input:focus {
   border-color: var(--accent);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 /* Segmented Controls for Stage & Goal with Clear Boundaries & Bouncy Physics */
@@ -1464,26 +1571,29 @@ input:focus, select:focus, textarea:focus {
 
 .dossier-textarea {
   width: 100%;
-  min-height: 52px;
-  padding: 8px 12px;
+  min-height: 56px;
+  max-height: 200px;
+  padding: 10px 12px;
   background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
-  box-shadow: var(--glass-specular);
-  border-radius: 3px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
+  border-radius: 4px;
   color: var(--text-main);
   font-family: var(--font-machine);
-  font-size: 11px;
-  line-height: 18px;
+  font-size: 11.5px;
+  line-height: 19px;
   letter-spacing: var(--machine-tracking);
   resize: vertical;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 160ms var(--spring-fluid), box-shadow 160ms var(--spring-fluid);
+  transition: min-height 260ms var(--spring-fluid), border-color 160ms var(--spring-snappy), box-shadow 160ms var(--spring-snappy), background 160ms ease;
 }
 
 .dossier-textarea:focus {
+  min-height: 84px;
   border-color: var(--accent);
-  box-shadow: var(--glass-specular), 0 0 0 1px var(--accent);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.14);
 }
 
 /* Tag Chips for Interests */
@@ -1662,9 +1772,23 @@ input:focus, select:focus, textarea:focus {
 
 .fact-cat-select, .fact-text-input {
   width: 100%;
-  padding: 4px 8px;
+  min-height: 36px;
+  padding: 8px 10px;
   font-family: var(--font-machine);
-  font-size: 11px;
+  font-size: 11.5px;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  color: var(--text-main);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+  transition: all 160ms var(--spring-snappy);
+}
+
+.fact-text-input:focus, .fact-cat-select:focus {
+  border-color: var(--accent);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 2px rgba(255, 79, 31, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 /* AI Controls & Mood Selector (Machine Tabs) */
