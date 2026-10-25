@@ -1224,6 +1224,20 @@ function bindEvents() {
       dom.proModeBtn.classList.toggle('active', state.proMode);
       dom.proModeBtn.textContent = state.proMode ? 'PRO [ON]' : 'PRO [OFF]';
       showToast(state.proMode ? 'PRO MODE ENGAGED' : 'PRO MODE DISENGAGED', 'info');
+
+      // Auto-reveal steering directive control row when Pro Mode is engaged
+      if (dom.marginNoteRow && dom.noteToggleBtn) {
+        if (state.proMode) {
+          dom.marginNoteRow.classList.remove('hidden');
+          dom.noteToggleBtn.classList.add('active');
+          if (dom.steeringInput) {
+            dom.steeringInput.focus();
+          }
+        } else if (!dom.steeringInput?.value.trim()) {
+          dom.marginNoteRow.classList.add('hidden');
+          dom.noteToggleBtn.classList.remove('active');
+        }
+      }
     });
   }
 

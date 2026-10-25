@@ -426,33 +426,40 @@ class TestMilestoneFeatures(unittest.TestCase):
 
     def test_copilot_draft_endpoint(self):
         from fastapi.testclient import TestClient
+        from unittest.mock import patch
         from backend.main import app, db
 
-        client = TestClient(app)
+        mock_variants = {
+            "chill": {"text": "hey chill", "bubbles": ["hey chill"]},
+            "direct": {"text": "hey direct", "bubbles": ["hey direct"]},
+            "banter": {"text": "hey banter", "bubbles": ["hey banter"]}
+        }
+        with patch("backend.main.llm.generate_variants", return_value=mock_variants):
+            client = TestClient(app)
 
-        copilot_res = client.post(
-            "/api/copilot/draft",
-            json={
-                "contact_name": "Copilot Friend",
-                "incoming_message": "hey what are you doing tonight",
-                "mood": "chill",
-                "pro_mode": False,
-            },
-        )
-        self.assertEqual(copilot_res.status_code, 200)
-        data = copilot_res.json()
-        self.assertIn("draft", data)
-        self.assertIn("variants", data)
-        self.assertEqual(data["contact_name"], "Copilot Friend")
-        contact_id = data["contact_id"]
+            copilot_res = client.post(
+                "/api/copilot/draft",
+                json={
+                    "contact_name": "Copilot Friend",
+                    "incoming_message": "hey what are you doing tonight",
+                    "mood": "chill",
+                    "pro_mode": False,
+                },
+            )
+            self.assertEqual(copilot_res.status_code, 200)
+            data = copilot_res.json()
+            self.assertIn("draft", data)
+            self.assertIn("variants", data)
+            self.assertEqual(data["contact_name"], "Copilot Friend")
+            contact_id = data["contact_id"]
 
-        # Ensure contact exists in DB
-        contact = db.get_contact(contact_id)
-        self.assertIsNotNone(contact)
-        self.assertEqual(contact.name, "Copilot Friend")
+            # Ensure contact exists in DB
+            contact = db.get_contact(contact_id)
+            self.assertIsNotNone(contact)
+            self.assertEqual(contact.name, "Copilot Friend")
 
-        # Cleanup
-        db.delete_contact(contact_id)
+            # Cleanup
+            db.delete_contact(contact_id)
 
 
 class TestPerformanceAndRobustness(unittest.TestCase):
@@ -560,28 +567,35 @@ Hope this helps!"""
     def test_multi_bubble_copilot_endpoint(self):
         """Verifies that /api/copilot/draft returns the bubbles array."""
         from fastapi.testclient import TestClient
+        from unittest.mock import patch
         from backend.main import app, db
 
-        client = TestClient(app)
-        res = client.post(
-            "/api/copilot/draft",
-            json={
-                "contact_name": "Bubble Friend",
-                "incoming_message": "are you free this weekend?",
-                "mood": "chill",
-            },
-        )
-        self.assertEqual(res.status_code, 200)
-        data = res.json()
-        self.assertIn("bubbles", data)
-        self.assertIsInstance(data["bubbles"], list)
-        self.assertIn("variants", data)
-        for v in data["variants"]:
-            self.assertIn("bubbles", v)
-            self.assertIsInstance(v["bubbles"], list)
+        mock_variants = {
+            "chill": {"text": "hey there", "bubbles": ["hey there"]},
+            "direct": {"text": "yes I am", "bubbles": ["yes I am"]},
+            "banter": {"text": "maybe, what's up?", "bubbles": ["maybe,", "what's up?"]}
+        }
+        with patch("backend.main.llm.generate_variants", return_value=mock_variants):
+            client = TestClient(app)
+            res = client.post(
+                "/api/copilot/draft",
+                json={
+                    "contact_name": "Bubble Friend",
+                    "incoming_message": "are you free this weekend?",
+                    "mood": "chill",
+                },
+            )
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertIn("bubbles", data)
+            self.assertIsInstance(data["bubbles"], list)
+            self.assertIn("variants", data)
+            for v in data["variants"]:
+                self.assertIn("bubbles", v)
+                self.assertIsInstance(v["bubbles"], list)
 
-        # Cleanup
-        db.delete_contact(data["contact_id"])
+            # Cleanup
+            db.delete_contact(data["contact_id"])
 
 
 if __name__ == "__main__":
