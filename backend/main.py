@@ -12,7 +12,7 @@ from .models import (
     ContactCreate, ContactUpdate, GenerateRequest, GenerateResponse,
     ApproveRequest, IngestRequest, SteerRequest, SteerResponse, DraftVariant,
     Fact, FactCreate, CopilotDraftRequest, CopilotDraftResponse,
-    DescribeMediaRequest, SyncHistoryRequest
+    DescribeMediaRequest, SyncHistoryRequest, WatcherStartRequest
 )
 from .database import DatabaseManager
 from .memory import MemoryStore
@@ -488,6 +488,45 @@ def sync_instagram_history(req: SyncHistoryRequest):
         db.add_messages_batch(new_messages)
 
     return {"status": "synced", "count": len(new_messages)}
+
+@app.post("/api/watcher/start")
+def start_instagram_watcher(req: WatcherStartRequest):
+    contact = db.get_contact(req.contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    from .instagram_watcher import start_watcher, get_state
+    current_state = get_state()
+    if current_state.get("running"):
+        return {"status": "already_running", "state": current_state}
+
+    start_watcher(
+        contact_id=req.contact_id,
+        their_ig_username=req.instagram_url,
+        mood=req.mood or "default",
+        full_auto=req.full_auto
+    )
+    return {"status": "started", "state": get_state()}
+
+@app.post("/api/watcher/stop")
+def stop_instagram_watcher():
+    from .instagram_watcher import stop_watcher, get_state
+    stop_watcher()
+    return {"status": "stopping", "state": get_state()}
+
+@app.get("/api/watcher/status")
+def get_instagram_watcher_status():
+    from .instagram_watcher import get_state
+    return get_state()
+
+@app.post("/api/watcher/send")
+async def send_watcher_reply(payload: dict):
+    text = payload.get("text", "")
+    if not text:
+        raise HTTPException(status_code=400, detail="Missing reply text")
+    from .instagram_watcher import send_approved_reply
+    success = await send_approved_reply(text)
+    return {"status": "sent" if success else "failed"}
 
 # ─── Ingestion ───
 

@@ -597,6 +597,41 @@ Hope this helps!"""
             # Cleanup
             db.delete_contact(data["contact_id"])
 
+    def test_watcher_endpoints(self):
+        """Verifies start, status, and stop endpoints for Playwright Instagram watcher."""
+        from fastapi.testclient import TestClient
+        from unittest.mock import patch
+        from backend.main import app, db
+        from backend.models import Contact
+
+        test_c = db.add_contact(Contact(name="Watcher Test Contact"))
+        client = TestClient(app)
+
+        # Status check
+        res = client.get("/api/watcher/status")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("running", res.json())
+
+        # Start watcher with mock
+        with patch("backend.instagram_watcher.start_watcher") as mock_start:
+            start_res = client.post("/api/watcher/start", json={
+                "contact_id": test_c.id,
+                "instagram_url": "https://www.instagram.com/direct/t/123456789/",
+                "mood": "chill",
+                "full_auto": False
+            })
+            self.assertEqual(start_res.status_code, 200)
+            mock_start.assert_called_once()
+
+        # Stop watcher with mock
+        with patch("backend.instagram_watcher.stop_watcher") as mock_stop:
+            stop_res = client.post("/api/watcher/stop")
+            self.assertEqual(stop_res.status_code, 200)
+            mock_stop.assert_called_once()
+
+        # Cleanup
+        db.delete_contact(test_c.id)
+
 
 if __name__ == "__main__":
     unittest.main()

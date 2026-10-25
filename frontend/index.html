@@ -309,6 +309,44 @@
           </button>
         </div>
 
+        <!-- Instagram Playwright Autopilot / Live Watcher -->
+        <div class="sidebar-panel" id="watcherPanel">
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>AUTOPILOT · INSTAGRAM WATCHER</span>
+            <span class="watcher-status-tag mono" id="watcherStatusBadge">IDLE</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label class="segmented-label" for="watcherThreadUrl">INSTAGRAM THREAD URL OR @USERNAME</label>
+            <input
+              type="text"
+              id="watcherThreadUrl"
+              class="form-input"
+              placeholder="https://www.instagram.com/direct/t/..."
+              title="Paste your Instagram Direct thread URL or target @username"
+            />
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+            <button class="btn-pro-toggle" id="watcherFullAutoBtn" type="button" title="Toggle Auto-Send: automatically dispatch replies directly into Instagram DMs without waiting" style="flex: 1; justify-content: center; height: 30px;">
+              AUTO-SEND [OFF]
+            </button>
+            <button class="btn-approve" id="watcherLaunchBtn" type="button" style="flex: 1.5; justify-content: center; height: 30px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>LAUNCH WATCHER</span>
+            </button>
+          </div>
+
+          <div class="stat-row" style="margin-top: 2px;">
+            <span class="stat-label">PLAYWRIGHT ENGINE</span>
+            <span class="stat-value mono" id="watcherEngineStatus" style="font-size: 11px;">CHROME PERSISTENT</span>
+          </div>
+          <div class="stat-row" id="watcherLastMsgRow" style="display:none; margin-top: 4px;">
+            <span class="stat-label">LAST DETECTED DM</span>
+            <span class="stat-value mono" id="watcherLastMsg" style="font-size: 11px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">—</span>
+          </div>
+        </div>
+
         <!-- AI Tone & Mood Registers -->
         <div class="sidebar-panel">
           <div class="panel-title">VOICE REGISTER</div>

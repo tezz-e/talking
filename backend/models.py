@@ -162,6 +162,14 @@ class SyncHistoryRequest(BaseModel):
     messages: List[Dict[str, Any]] = Field(default_factory=list, description="List of message objects")
 
 
+class WatcherStartRequest(BaseModel):
+    """Request to start the Playwright Instagram DM watcher."""
+    contact_id: str = Field(..., description="Target contact ID")
+    instagram_url: str = Field(..., description="Instagram thread URL or username")
+    mood: Optional[str] = Field(default="default", description="Tone for generated replies")
+    full_auto: bool = Field(default=False, description="Automatically send approved drafts without waiting")
+
+
 class GenerateResponse(BaseModel):
     """AI-generated draft reply."""
     draft: str = Field(..., description="The generated reply text")

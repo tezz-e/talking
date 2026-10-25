@@ -26,7 +26,10 @@ const state = {
   isEditing: false,
   ingestSource: 'instagram',
   lastIncomingMessage: null,
-  theme: localStorage.getItem('talking_theme') || 'light'
+  theme: localStorage.getItem('talking_theme') || 'light',
+  watcherRunning: false,
+  watcherFullAuto: false,
+  watcherPollInterval: null
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -169,6 +172,29 @@ const api = {
   // ── Stats ──
   getStats() {
     return this._fetch('/api/stats');
+  },
+
+  // ── Watcher ──
+  startWatcher(contactId, instagramUrl, mood = 'default', fullAuto = false) {
+    return this._fetch('/api/watcher/start', {
+      method: 'POST',
+      body: JSON.stringify({
+        contact_id: contactId,
+        instagram_url: instagramUrl,
+        mood: mood,
+        full_auto: fullAuto
+      })
+    });
+  },
+
+  stopWatcher() {
+    return this._fetch('/api/watcher/stop', {
+      method: 'POST'
+    });
+  },
+
+  getWatcherStatus() {
+    return this._fetch('/api/watcher/status');
   }
 };
 
@@ -239,6 +265,16 @@ const dom = {
   newFactInput:        $('#newFactInput'),
   saveNewFactBtn:      $('#saveNewFactBtn'),
   saveContactBtn:      $('#saveContactBtn'),
+
+  // Watcher / Autopilot
+  watcherPanel:        $('#watcherPanel'),
+  watcherStatusBadge:  $('#watcherStatusBadge'),
+  watcherThreadUrl:    $('#watcherThreadUrl'),
+  watcherFullAutoBtn:  $('#watcherFullAutoBtn'),
+  watcherLaunchBtn:    $('#watcherLaunchBtn'),
+  watcherEngineStatus: $('#watcherEngineStatus'),
+  watcherLastMsgRow:   $('#watcherLastMsgRow'),
+  watcherLastMsg:      $('#watcherLastMsg'),
 
   // Mood
   moodSelector:     $('#moodSelector'),
@@ -586,6 +622,10 @@ function renderContactProfile(contact) {
 
   syncSegmentedControls(contact.relationship_stage || 'stranger', contact.convo_goal || 'just_vibing');
   loadAndRenderFacts(contact.id);
+
+  if (dom.watcherThreadUrl) {
+    dom.watcherThreadUrl.value = localStorage.getItem(`talking_ig_url_${contact.id}`) || '';
+  }
 }
 
 /**
@@ -1206,6 +1246,117 @@ function renderContacts(contacts) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Watcher / Autopilot Controller (Playwright Instagram Watcher)
+// ─────────────────────────────────────────────────────────────
+
+async function toggleWatcher() {
+  if (state.watcherRunning) {
+    // Stop watcher
+    dom.watcherLaunchBtn.disabled = true;
+    try {
+      await api.stopWatcher();
+      showToast('PLAYWRIGHT WATCHER STOPPED', 'info');
+      state.watcherRunning = false;
+      updateWatcherUI({ running: false, status_text: 'Stopped' });
+      if (state.watcherPollInterval) {
+        clearInterval(state.watcherPollInterval);
+        state.watcherPollInterval = null;
+      }
+    } catch (err) {
+      showToast(`STOP ERROR: ${err.message}`, 'error');
+    } finally {
+      dom.watcherLaunchBtn.disabled = false;
+    }
+  } else {
+    // Start watcher
+    if (!state.currentContact) {
+      showToast('SELECT A CONTACT FIRST', 'warning');
+      return;
+    }
+    const url = dom.watcherThreadUrl?.value.trim() || '';
+    if (!url) {
+      showToast('ENTER INSTAGRAM THREAD URL OR @USERNAME', 'warning');
+      dom.watcherThreadUrl?.focus();
+      return;
+    }
+
+    dom.watcherLaunchBtn.disabled = true;
+    try {
+      const res = await api.startWatcher(
+        state.currentContact.id,
+        url,
+        state.currentMood,
+        state.watcherFullAuto
+      );
+      state.watcherRunning = true;
+      showToast('CHROME PLAYWRIGHT LAUNCHED', 'success');
+      updateWatcherUI(res.state || { running: true, status_text: 'Starting...' });
+      startWatcherPolling();
+    } catch (err) {
+      showToast(`LAUNCH ERROR: ${err.message}`, 'error');
+    } finally {
+      dom.watcherLaunchBtn.disabled = false;
+    }
+  }
+}
+
+function updateWatcherUI(ws) {
+  if (!dom.watcherStatusBadge || !dom.watcherLaunchBtn) return;
+  const isRunning = Boolean(ws?.running);
+  state.watcherRunning = isRunning;
+
+  dom.watcherLaunchBtn.innerHTML = isRunning
+    ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"/></svg><span>STOP WATCHER</span>`
+    : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>LAUNCH WATCHER</span>`;
+
+  if (dom.watcherEngineStatus) {
+    dom.watcherEngineStatus.textContent = ws?.status_text || (isRunning ? 'ACTIVE' : 'CHROME PERSISTENT');
+  }
+
+  dom.watcherStatusBadge.className = 'watcher-status-tag mono';
+  if (isRunning) {
+    if (ws?.status_text?.toLowerCase().includes('watching')) {
+      dom.watcherStatusBadge.classList.add('watching');
+      dom.watcherStatusBadge.textContent = 'WATCHING';
+    } else {
+      dom.watcherStatusBadge.classList.add('active');
+      dom.watcherStatusBadge.textContent = 'CONNECTING...';
+    }
+  } else {
+    dom.watcherStatusBadge.textContent = 'IDLE';
+  }
+
+  if (dom.watcherLastMsgRow && dom.watcherLastMsg) {
+    if (ws?.last_message) {
+      dom.watcherLastMsgRow.style.display = 'flex';
+      dom.watcherLastMsg.textContent = ws.last_message;
+    } else {
+      dom.watcherLastMsgRow.style.display = 'none';
+    }
+  }
+
+  // If a pending reply was generated by watcher and we're not in full auto, display it in draft panel!
+  if (ws?.pending_reply && !state.currentDraft) {
+    showDraft(ws.pending_reply, 0.92, [{ text: ws.pending_reply, label: 'direct', bubbles: [ws.pending_reply] }], ['live_dm']);
+  }
+}
+
+function startWatcherPolling() {
+  if (state.watcherPollInterval) clearInterval(state.watcherPollInterval);
+  state.watcherPollInterval = setInterval(async () => {
+    try {
+      const ws = await api.getWatcherStatus();
+      updateWatcherUI(ws);
+      if (!ws.running && state.watcherRunning) {
+        state.watcherRunning = false;
+        clearInterval(state.watcherPollInterval);
+        state.watcherPollInterval = null;
+      }
+    } catch {}
+  }, 2500);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Event Binding
 // ─────────────────────────────────────────────────────────────
 
@@ -1356,6 +1507,26 @@ function bindEvents() {
     dom.moodSelector.addEventListener('click', handleMoodSelect);
   }
 
+  // Watcher / Autopilot
+  if (dom.watcherLaunchBtn) {
+    dom.watcherLaunchBtn.addEventListener('click', toggleWatcher);
+  }
+  if (dom.watcherFullAutoBtn) {
+    dom.watcherFullAutoBtn.addEventListener('click', () => {
+      state.watcherFullAuto = !state.watcherFullAuto;
+      dom.watcherFullAutoBtn.classList.toggle('active', state.watcherFullAuto);
+      dom.watcherFullAutoBtn.textContent = state.watcherFullAuto ? 'AUTO-SEND [ON]' : 'AUTO-SEND [OFF]';
+      showToast(state.watcherFullAuto ? 'FULL AUTO ENGAGED (AUTO-DISPATCH DMs)' : 'AUTO-SEND DISABLED', 'info');
+    });
+  }
+  if (dom.watcherThreadUrl) {
+    dom.watcherThreadUrl.addEventListener('input', () => {
+      if (state.currentContact) {
+        localStorage.setItem(`talking_ig_url_${state.currentContact.id}`, dom.watcherThreadUrl.value.trim());
+      }
+    });
+  }
+
   // Modals & Data management
   if (dom.ingestBtn) dom.ingestBtn.addEventListener('click', () => showModal('ingestModal'));
   if (dom.editSoulBtn) dom.editSoulBtn.addEventListener('click', async () => {
@@ -1440,6 +1611,16 @@ async function init() {
   bindEvents();
   updateStats();
   initSpotlightEffects();
+
+  // Check initial Watcher status
+  try {
+    const ws = await api.getWatcherStatus();
+    if (ws?.running) {
+      state.watcherRunning = true;
+      updateWatcherUI(ws);
+      startWatcherPolling();
+    }
+  } catch {}
 
   try {
     const contacts = await api.getContacts();
