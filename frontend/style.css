@@ -1253,7 +1253,8 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-muted);
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   cursor: pointer;
   white-space: nowrap;
   transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease;
@@ -1261,6 +1262,7 @@ input:focus, select:focus, textarea:focus {
 
 .btn-pro-toggle:hover {
   transform: translateY(-1px);
+  border-color: var(--hairline-strong);
 }
 
 .btn-pro-toggle:active {
@@ -1272,6 +1274,61 @@ input:focus, select:focus, textarea:focus {
   color: var(--accent);
   background: var(--accent-subtle);
   font-weight: 600;
+}
+
+/* Switch track & thumb inside toggle buttons */
+.switch-track {
+  width: 22px;
+  height: 12px;
+  background: var(--hairline);
+  border-radius: var(--radius-chrome);
+  position: relative;
+  transition: background 150ms ease;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 10px;
+  height: 10px;
+  background: var(--text-muted);
+  border-radius: var(--radius-chrome);
+  transition: transform 180ms var(--spring-snappy), background 150ms ease;
+}
+
+.btn-pro-toggle.active .switch-track {
+  background: var(--accent);
+}
+
+.btn-pro-toggle.active .switch-thumb {
+  transform: translateX(10px);
+  background: var(--accent-ink);
+}
+
+.switch-status {
+  font-size: 10px;
+  min-width: 20px;
+  text-align: right;
+  opacity: 0.85;
+}
+
+/* Persistent warning state for AUTO-SEND while ON */
+.btn-auto-send.active {
+  background: var(--warn) !important;
+  border-color: var(--warn) !important;
+  color: var(--warn-ink) !important;
+}
+
+.btn-auto-send.active .switch-track {
+  background: rgba(0, 0, 0, 0.35) !important;
+}
+
+.btn-auto-send.active .switch-thumb {
+  background: #FFFFFF !important;
 }
 
 .btn-note-toggle {
@@ -1971,6 +2028,117 @@ input:focus, select:focus, textarea:focus {
   color: var(--paper);
   border: 1px solid var(--ink);
   border-radius: var(--radius-chrome);
+}
+
+.toast.error {
+  text-transform: none;
+  letter-spacing: normal;
+  border-color: var(--accent);
+}
+
+.toast.warning {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: var(--warn-ink);
+}
+
+/* Dossier, Watcher, Ingest Helper Classes */
+.dossier-notes-textarea {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.mb-0 {
+  margin-bottom: 0 !important;
+}
+
+.btn-add-fact {
+  padding: 2px 6px !important;
+  font-size: 10px !important;
+}
+
+.fact-empty-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+
+.btn-save-fact {
+  height: 26px !important;
+}
+
+.btn-save-contact {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.panel-title-split {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.watcher-form-group {
+  margin-bottom: 8px;
+}
+
+.watcher-actions-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.watcher-auto-btn {
+  flex: 1;
+  justify-content: center;
+  height: 30px;
+  min-height: 30px;
+}
+
+.watcher-launch-btn {
+  flex: 1.5;
+  justify-content: center;
+  height: 30px;
+}
+
+.stat-row.mt-2 {
+  margin-top: 2px;
+}
+
+.stat-row.mt-4 {
+  margin-top: 4px;
+}
+
+.stat-value-small {
+  font-size: 11px;
+}
+
+#watcherLastMsgRow {
+  display: none;
+  margin-top: 4px;
+}
+
+#watcherLastMsg {
+  font-size: 11px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-stats-group {
+  margin-top: 4px;
+}
+
+.ingest-option-title {
+  font-weight: 600;
+}
+
+.ingest-option-subtitle {
+  font-size: 10px;
+  color: var(--text-muted);
 }
 
 /* Utilities */

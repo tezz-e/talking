@@ -35,6 +35,10 @@
   --mark-deleted: rgba(22, 20, 15, 0.45);
   --mark-added: #FF4F1F;
 
+  /* Persistent Warning (Auto-Send & Safety) */
+  --warn: #E65100;
+  --warn-ink: #FFFFFF;
+
   /* Geometry & Rules */
   --radius-chrome: 2px;
   --radius-bubble: 14px;
@@ -90,6 +94,10 @@
 
   --mark-deleted: rgba(236, 231, 218, 0.45);
   --mark-added: #FF4F1F;
+
+  /* Persistent Warning (Auto-Send & Safety) */
+  --warn: #FF8F00;
+  --warn-ink: #0E0F12;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -118,5 +126,9 @@
 
     --mark-deleted: rgba(236, 231, 218, 0.45);
     --mark-added: #FF4F1F;
+
+    /* Persistent Warning (Auto-Send & Safety) */
+    --warn: #FF8F00;
+    --warn-ink: #0E0F12;
   }
 }

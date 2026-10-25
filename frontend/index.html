@@ -167,8 +167,10 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             </button>
 
-            <button class="btn-pro-toggle" id="proModeBtn" type="button" aria-pressed="false" title="Toggle Pro Mode (deeper reasoning &amp; strategic steering)">
-              PRO [OFF]
+            <button class="btn-pro-toggle switch-btn" id="proModeBtn" type="button" aria-pressed="false" title="Toggle Pro Mode (deeper reasoning &amp; strategic steering)">
+              <span class="switch-label">PRO</span>
+              <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+              <span class="switch-status" id="proModeStatus">OFF</span>
             </button>
 
             <button class="btn-note-toggle" id="noteToggleBtn" type="button" aria-pressed="false" title="Add steering margin note (Ctrl+K)">
@@ -289,18 +291,18 @@
           <!-- Collapsible Notes Drawer -->
           <details class="notes-details">
             <summary class="notes-summary">ADDITIONAL DOSSIER NOTES</summary>
-            <textarea class="form-textarea mono dossier-textarea" id="contactNotes" placeholder="Detailed background notes..." rows="3" style="width:100%; margin-top:6px;"></textarea>
+            <textarea class="form-textarea mono dossier-textarea dossier-notes-textarea" id="contactNotes" placeholder="Detailed background notes..." rows="3"></textarea>
           </details>
 
           <!-- Known Facts Inspector: Index-Card Rows -->
           <div class="facts-section">
             <div class="facts-header">
-              <span class="segmented-label" style="margin-bottom:0;">KNOWN FACTS (<span id="contactFactCount">0</span>)</span>
-              <button class="btn btn-secondary btn-xs" id="addFactToggleBtn" type="button" style="padding: 2px 6px; font-size: 10px;">+ RECORD FACT</button>
+              <span class="segmented-label mb-0">KNOWN FACTS (<span id="contactFactCount">0</span>)</span>
+              <button class="btn btn-secondary btn-xs btn-add-fact" id="addFactToggleBtn" type="button">+ RECORD FACT</button>
             </div>
 
             <div id="contactFactList" class="fact-list">
-              <div class="fact-empty-hint machine" style="font-size:11px; color:var(--text-muted); padding:4px 0;">NO FACTS RECORDED YET.</div>
+              <div class="fact-empty-hint machine">NO FACTS RECORDED YET.</div>
             </div>
 
             <div id="newFactRow" class="new-fact-row hidden">
@@ -313,56 +315,13 @@
                 <option value="opinion">OPINION</option>
               </select>
               <input type="text" id="newFactInput" class="form-input fact-text-input" placeholder="e.g. Prefers matcha over coffee" />
-              <button class="btn btn-primary btn-xs" id="saveNewFactBtn" type="button" style="height:26px;">SAVE FACT</button>
+              <button class="btn btn-primary btn-xs btn-save-fact" id="saveNewFactBtn" type="button">SAVE FACT</button>
             </div>
           </div>
 
-          <button class="btn-approve" id="saveContactBtn" type="button" style="width:100%; justify-content:center; margin-top:4px;">
+          <button class="btn-approve btn-save-contact" id="saveContactBtn" type="button">
             SAVE DOSSIER
           </button>
-        </div>
-
-        <!-- Instagram Playwright Autopilot / Live Watcher -->
-        <div class="sidebar-panel" id="watcherPanel">
-          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
-            <span>AUTOPILOT · INSTAGRAM WATCHER</span>
-            <span class="watcher-status-tag mono" id="watcherStatusBadge">IDLE</span>
-          </div>
-
-          <div class="form-group" style="margin-bottom: 8px;">
-            <label class="segmented-label" for="watcherThreadUrl">INSTAGRAM THREAD URL OR @USERNAME</label>
-            <div class="input-expandable-wrapper">
-              <textarea
-                id="watcherThreadUrl"
-                class="form-input expanding-input"
-                rows="1"
-                placeholder="https://www.instagram.com/direct/t/..."
-                title="Paste your Instagram Direct thread URL or target @username"
-              ></textarea>
-              <button class="btn-input-action" id="pasteWatcherUrlBtn" type="button" title="Paste from Clipboard">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-              </button>
-            </div>
-          </div>
-
-          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
-            <button class="btn-pro-toggle" id="watcherFullAutoBtn" type="button" aria-pressed="false" title="Toggle Auto-Send: automatically dispatch replies directly into Instagram DMs without waiting" style="flex: 1; justify-content: center; height: 30px;">
-              AUTO-SEND [OFF]
-            </button>
-            <button class="btn-approve" id="watcherLaunchBtn" type="button" style="flex: 1.5; justify-content: center; height: 30px;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              <span>LAUNCH WATCHER</span>
-            </button>
-          </div>
-
-          <div class="stat-row" style="margin-top: 2px;">
-            <span class="stat-label">PLAYWRIGHT ENGINE</span>
-            <span class="stat-value mono" id="watcherEngineStatus" style="font-size: 11px;">CHROME PERSISTENT</span>
-          </div>
-          <div class="stat-row" id="watcherLastMsgRow" style="display:none; margin-top: 4px;">
-            <span class="stat-label">LAST DETECTED DM</span>
-            <span class="stat-value mono" id="watcherLastMsg" style="font-size: 11px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">—</span>
-          </div>
         </div>
 
         <!-- AI Tone & Mood Registers -->
@@ -381,7 +340,7 @@
             </div>
           </div>
 
-          <div style="margin-top:4px;">
+          <div class="sidebar-stats-group">
             <div class="stat-row">
               <span class="stat-label">ENGINE STATUS</span>
               <span class="stat-value" id="aiStatusText">READY</span>
@@ -390,6 +349,51 @@
               <span class="stat-label">TOTAL MEMORIES</span>
               <span class="stat-value mono" id="aiMemoryCount">—</span>
             </div>
+          </div>
+        </div>
+
+        <!-- Instagram Playwright Autopilot / Live Watcher -->
+        <div class="sidebar-panel" id="watcherPanel">
+          <div class="panel-title panel-title-split">
+            <span>AUTOPILOT · INSTAGRAM WATCHER</span>
+            <span class="watcher-status-tag mono" id="watcherStatusBadge">IDLE</span>
+          </div>
+
+          <div class="form-group watcher-form-group">
+            <label class="segmented-label" for="watcherThreadUrl">INSTAGRAM THREAD URL OR @USERNAME</label>
+            <div class="input-expandable-wrapper">
+              <textarea
+                id="watcherThreadUrl"
+                class="form-input expanding-input"
+                rows="1"
+                placeholder="https://www.instagram.com/direct/t/..."
+                title="Paste your Instagram Direct thread URL or target @username"
+              ></textarea>
+              <button class="btn-input-action" id="pasteWatcherUrlBtn" type="button" title="Paste from Clipboard">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="watcher-actions-row">
+            <button class="btn-pro-toggle switch-btn btn-auto-send watcher-auto-btn" id="watcherFullAutoBtn" type="button" aria-pressed="false" title="Toggle Auto-Send: automatically dispatch replies directly into Instagram DMs without waiting">
+              <span class="switch-label">AUTO-SEND</span>
+              <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+              <span class="switch-status" id="watcherFullAutoStatus">OFF</span>
+            </button>
+            <button class="btn-approve watcher-launch-btn" id="watcherLaunchBtn" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>LAUNCH WATCHER</span>
+            </button>
+          </div>
+
+          <div class="stat-row mt-2">
+            <span class="stat-label">PLAYWRIGHT ENGINE</span>
+            <span class="stat-value mono stat-value-small" id="watcherEngineStatus">CHROME PERSISTENT</span>
+          </div>
+          <div class="stat-row mt-4" id="watcherLastMsgRow">
+            <span class="stat-label">LAST DETECTED DM</span>
+            <span class="stat-value mono" id="watcherLastMsg">—</span>
           </div>
         </div>
 
@@ -465,16 +469,16 @@
           <label class="segmented-label">SOURCE PLATFORM</label>
           <div class="ingest-options" id="ingestSourceOptions">
             <button type="button" class="ingest-option selected" data-source="instagram" aria-pressed="true">
-              <span class="machine" style="font-weight:600;">INSTAGRAM</span>
-              <span class="machine" style="font-size:10px; color:var(--text-muted);">DIRECT EXPORT</span>
+              <span class="machine ingest-option-title">INSTAGRAM</span>
+              <span class="machine ingest-option-subtitle">DIRECT EXPORT</span>
             </button>
             <button type="button" class="ingest-option" data-source="whatsapp" aria-pressed="false">
-              <span class="machine" style="font-weight:600;">WHATSAPP</span>
-              <span class="machine" style="font-size:10px; color:var(--text-muted);">&gt; CHAT.TXT</span>
+              <span class="machine ingest-option-title">WHATSAPP</span>
+              <span class="machine ingest-option-subtitle">&gt; CHAT.TXT</span>
             </button>
             <button type="button" class="ingest-option" data-source="telegram" aria-pressed="false">
-              <span class="machine" style="font-weight:600;">TELEGRAM</span>
-              <span class="machine" style="font-size:10px; color:var(--text-muted);">JSON ARCHIVE</span>
+              <span class="machine ingest-option-title">TELEGRAM</span>
+              <span class="machine ingest-option-subtitle">JSON ARCHIVE</span>
             </button>
           </div>
         </div>

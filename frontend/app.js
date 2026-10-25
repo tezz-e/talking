@@ -29,6 +29,7 @@ const state = {
   theme: localStorage.getItem('talking_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   watcherRunning: false,
   watcherFullAuto: false,
+  autoSendConfirmedThisSession: false,
   watcherPollInterval: null
 };
 
@@ -459,7 +460,13 @@ function showToast(message, type = 'info', duration = 3000) {
   if (!dom.toastContainer) return;
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message.toUpperCase();
+  if (type === 'error') {
+    toast.textContent = message;
+    toast.style.textTransform = 'none';
+    toast.style.letterSpacing = 'normal';
+  } else {
+    toast.textContent = message.toUpperCase();
+  }
   dom.toastContainer.appendChild(toast);
 
   setTimeout(() => {
@@ -582,7 +589,7 @@ function setLoading(isLoading) {
     if (dom.draftHeader) dom.draftHeader.classList.remove('hidden');
     if (dom.draftContent) {
       dom.draftContent.classList.remove('hidden');
-      dom.draftContent.innerHTML = '<span class="draft-placeholder">Composing takes on baseline grid...</span>';
+      dom.draftContent.innerHTML = '<span class="draft-placeholder">Drafting...</span>';
     }
     if (dom.draftActions) dom.draftActions.classList.add('hidden');
     if (dom.draftVariants) dom.draftVariants.classList.add('hidden');
@@ -595,6 +602,35 @@ function setLoading(isLoading) {
 // Render Functions
 // ─────────────────────────────────────────────────────────────
 
+function renderEmptyStateMarkup() {
+  return `
+    <div class="message-history-empty" id="emptyState">
+      <div class="empty-icon-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <p>No messages recorded yet.<br />Paste incoming message below to begin proofing.</p>
+    </div>`;
+}
+
+function createMessageElement(msg, { animate = false } = {}) {
+  const row = document.createElement('div');
+  const isOutgoing = msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing';
+  row.className = `message ${isOutgoing ? 'message-outgoing' : 'message-incoming'}${animate ? ' message-animate-in' : ''}`;
+
+  const wasEdited = isOutgoing && msg.was_edited;
+  const senderName = isOutgoing ? 'YOU' : (state.currentContact?.name?.toUpperCase() || 'THEM');
+
+  row.innerHTML = `
+    <div class="message-bubble${wasEdited ? ' was-edited' : ''}">
+      ${escapeHtml(msg.content || msg.text || '')}
+    </div>
+    <div class="message-meta">
+      <span>${senderName}</span> · <span>${relativeTime(msg.timestamp)}</span>
+    </div>
+  `;
+  return row;
+}
+
 /**
  * Render message history into the chat panel.
  */
@@ -605,34 +641,14 @@ function renderMessages(messages) {
   dom.messageHistory.innerHTML = '';
 
   if (!messages || messages.length === 0) {
-    dom.messageHistory.innerHTML = `
-      <div class="message-history-empty" id="emptyState">
-        <div class="empty-icon-box">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        </div>
-        <p>No messages recorded yet.<br />Paste incoming message below to begin proofing.</p>
-      </div>`;
+    dom.messageHistory.innerHTML = renderEmptyStateMarkup();
     return;
   }
 
   const fragment = document.createDocumentFragment();
 
   messages.forEach((msg) => {
-    const row = document.createElement('div');
-    const isOutgoing = msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing';
-    row.className = `message ${isOutgoing ? 'message-outgoing' : 'message-incoming'}`;
-
-    const wasEdited = isOutgoing && msg.was_edited;
-    const senderName = isOutgoing ? 'YOU' : (state.currentContact?.name?.toUpperCase() || 'THEM');
-
-    row.innerHTML = `
-      <div class="message-bubble${wasEdited ? ' was-edited' : ''}">
-        ${escapeHtml(msg.content || msg.text || '')}
-      </div>
-      <div class="message-meta">
-        <span>${senderName}</span> · <span>${relativeTime(msg.timestamp)}</span>
-      </div>
-    `;
+    const row = createMessageElement(msg, { animate: false });
     fragment.appendChild(row);
   });
 
@@ -654,23 +670,10 @@ function appendMessage(msg) {
   const emptyEl = dom.messageHistory.querySelector('.message-history-empty');
   if (emptyEl) emptyEl.remove();
 
-  const row = document.createElement('div');
-  const isOutgoing = msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing';
-  row.className = `message ${isOutgoing ? 'message-outgoing' : 'message-incoming'} message-animate-in`;
-
-  const wasEdited = isOutgoing && msg.was_edited;
-  const senderName = isOutgoing ? 'YOU' : (state.currentContact?.name?.toUpperCase() || 'THEM');
-
-  row.innerHTML = `
-    <div class="message-bubble${wasEdited ? ' was-edited' : ''}">
-      ${escapeHtml(msg.content || msg.text || '')}
-    </div>
-    <div class="message-meta">
-      <span>${senderName}</span> · <span>${relativeTime(msg.timestamp)}</span>
-    </div>
-  `;
-
+  const row = createMessageElement(msg, { animate: true });
   dom.messageHistory.appendChild(row);
+
+  const senderName = (msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing') ? 'YOU' : (state.currentContact?.name?.toUpperCase() || 'THEM');
 
   // Announce only newest message to screen readers
   const announcer = document.getElementById('messageAnnouncer');
@@ -872,7 +875,7 @@ function renderDraftContent(draftText, bubbles = []) {
       bEl.style.animationDelay = `${idx * 45}ms`;
       const formatted = renderTextWithMarks(bText, state.previousDraft);
       bEl.innerHTML = `
-        <span class="bubble-idx">0${idx + 1}</span>
+        <span class="bubble-idx">${String(idx + 1).padStart(2, '0')}</span>
         <span class="bubble-text">${formatted}</span>
       `;
       stack.appendChild(bEl);
@@ -1689,8 +1692,13 @@ function bindEvents() {
       state.proMode = !state.proMode;
       dom.proModeBtn.classList.toggle('active', state.proMode);
       dom.proModeBtn.setAttribute('aria-pressed', String(state.proMode));
-      dom.proModeBtn.textContent = state.proMode ? 'PRO [ON]' : 'PRO [OFF]';
-      showToast(state.proMode ? 'PRO MODE ENGAGED' : 'PRO MODE DISENGAGED', 'info');
+      const statusEl = dom.proModeBtn.querySelector('.switch-status');
+      if (statusEl) {
+        statusEl.textContent = state.proMode ? 'ON' : 'OFF';
+      } else {
+        dom.proModeBtn.textContent = state.proMode ? 'PRO [ON]' : 'PRO [OFF]';
+      }
+      showToast(state.proMode ? 'PRO MODE ENGAGED (DEEP RAG & MIMICRY)' : 'PRO MODE DISENGAGED', 'info');
 
       // Auto-reveal steering directive control row when Pro Mode is engaged
       if (dom.marginNoteRow && dom.noteToggleBtn) {
@@ -1867,11 +1875,24 @@ function bindEvents() {
   }
   if (dom.watcherFullAutoBtn) {
     dom.watcherFullAutoBtn.addEventListener('click', () => {
-      state.watcherFullAuto = !state.watcherFullAuto;
+      const willEnable = !state.watcherFullAuto;
+      if (willEnable && !state.autoSendConfirmedThisSession) {
+        const confirmed = window.confirm(
+          'WARNING: AUTO-SEND dispatches AI replies directly into Instagram DMs without your manual review.\n\nAre you sure you want to enable unattended auto-dispatch for this session?'
+        );
+        if (!confirmed) return;
+        state.autoSendConfirmedThisSession = true;
+      }
+      state.watcherFullAuto = willEnable;
       dom.watcherFullAutoBtn.classList.toggle('active', state.watcherFullAuto);
       dom.watcherFullAutoBtn.setAttribute('aria-pressed', String(state.watcherFullAuto));
-      dom.watcherFullAutoBtn.textContent = state.watcherFullAuto ? 'AUTO-SEND [ON]' : 'AUTO-SEND [OFF]';
-      showToast(state.watcherFullAuto ? 'FULL AUTO ENGAGED (AUTO-DISPATCH DMs)' : 'AUTO-SEND DISABLED', 'info');
+      const statusEl = dom.watcherFullAutoBtn.querySelector('.switch-status');
+      if (statusEl) {
+        statusEl.textContent = state.watcherFullAuto ? 'ON' : 'OFF';
+      } else {
+        dom.watcherFullAutoBtn.textContent = state.watcherFullAuto ? 'AUTO-SEND [ON]' : 'AUTO-SEND [OFF]';
+      }
+      showToast(state.watcherFullAuto ? 'FULL AUTO ENGAGED (AUTO-DISPATCH DMs)' : 'AUTO-SEND DISABLED', state.watcherFullAuto ? 'warning' : 'info');
     });
   }
   if (dom.watcherThreadUrl) {
