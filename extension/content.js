@@ -334,7 +334,7 @@
     const pill = document.createElement('div');
     pill.id = 'talking-copilot-pill';
     pill.innerHTML = `
-      <span class="tk-icon">⚡</span>
+      <span class="tk-icon">✦</span>
       <span>Draft</span>
       <span class="tk-kbd">Alt+D</span>
     `;
@@ -363,8 +363,8 @@
     modal.innerHTML = `
       <div class="tk-header">
         <div class="tk-title-wrap">
-          <span style="font-size:16px;">⚡</span>
-          <span class="tk-brand">Talking Copilot</span>
+          <span class="tk-icon">✦</span>
+          <span class="tk-brand">Talking</span>
           <span class="tk-contact-tag">${escapeHtml(safeContact)}</span>
         </div>
         <button class="tk-close-btn" id="tk-close-modal">✕</button>
@@ -404,7 +404,7 @@
         <div class="tk-left-actions">
           <label class="tk-pro-toggle">
             <input type="checkbox" id="tk-pro-toggle-cb" ${isProMode ? 'checked' : ''} />
-            <span>⚡ Pro</span>
+            <span>Pro Mode</span>
           </label>
           <button class="tk-btn tk-btn-secondary" id="tk-regen-btn" title="Regenerate">🔄</button>
         </div>
