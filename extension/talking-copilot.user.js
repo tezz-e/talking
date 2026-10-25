@@ -462,14 +462,19 @@
       display: flex;
       align-items: baseline;
       gap: 8px;
-      animation: tkBubbleEntrance 220ms var(--tk-spring-fluid) backwards;
-      transition: transform 160ms var(--tk-spring-snappy), border-color 140ms ease, box-shadow 160ms ease;
+      animation: tkBubbleBounceIn 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+      transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), border-color 140ms ease, box-shadow 160ms ease;
+      transform-origin: bottom right;
     }
 
-    @keyframes tkBubbleEntrance {
+    @keyframes tkBubbleBounceIn {
       0% {
         opacity: 0;
-        transform: translateY(6px) scale(0.98);
+        transform: translateY(12px) scale(0.9);
+      }
+      65% {
+        opacity: 1;
+        transform: translateY(-2px) scale(1.02);
       }
       100% {
         opacity: 1;
@@ -479,11 +484,12 @@
 
     .tk-bubble-item:hover {
       border-color: var(--tk-ink);
-      transform: translateY(-1px);
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: var(--tk-glass-specular-active), 0 4px 12px rgba(0, 0, 0, 0.08);
     }
 
     .tk-bubble-item:active {
-      transform: scale(0.98);
+      transform: scale(0.96);
     }
 
     .tk-bubble-num {

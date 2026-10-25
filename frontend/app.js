@@ -830,7 +830,7 @@ function updateVariantSlider(activeBtn) {
 }
 
 function initSpotlightEffects() {
-  const cards = document.querySelectorAll('.draft-panel, .composer-section, .sidebar-panel, .header');
+  const cards = document.querySelectorAll('.draft-panel, .composer-section, .sidebar-panel');
   cards.forEach((card) => {
     card.classList.add('spotlight-card');
     card.addEventListener('mousemove', (e) => {
@@ -1107,6 +1107,85 @@ function handleMoodSelect(e) {
   state.currentMood = chip.dataset.mood;
 }
 
+function renderCustomContactDropdown(contacts) {
+  const trigger = document.getElementById('customContactTrigger');
+  const label = document.getElementById('customContactLabel');
+  const dropdown = document.getElementById('customContactDropdown');
+  if (!trigger || !dropdown || !label) return;
+
+  // Update label
+  if (state.currentContact) {
+    label.textContent = (state.currentContact.name || 'CONTACT').toUpperCase();
+  } else if (dom.contactSelector && dom.contactSelector.value === '__new__') {
+    label.textContent = '＋ NEW CONTACT';
+  } else {
+    label.textContent = '— SELECT CONTACT —';
+  }
+
+  // Populate dropdown items
+  dropdown.innerHTML = '';
+
+  const addOption = (val, text, isSpecial = false) => {
+    const item = document.createElement('div');
+    const isSel = dom.contactSelector && dom.contactSelector.value === val;
+    item.className = `custom-select-item ${isSel ? 'selected' : ''}`;
+    item.dataset.value = val;
+    item.innerHTML = `<span>${escapeHtml(text)}</span>${isSel ? '<span style="color:var(--accent);">✓</span>' : ''}`;
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (dom.contactSelector) {
+        dom.contactSelector.value = val;
+        dom.contactSelector.dispatchEvent(new Event('change'));
+      }
+      dropdown.classList.add('hidden');
+      trigger.classList.remove('open');
+      renderCustomContactDropdown(state.contacts);
+    });
+    dropdown.appendChild(item);
+  };
+
+  addOption('', '— SELECT CONTACT —');
+  addOption('__new__', '+ NEW CONTACT', true);
+
+  if (contacts && contacts.length > 0) {
+    const divider = document.createElement('div');
+    divider.className = 'custom-select-divider';
+    dropdown.appendChild(divider);
+
+    contacts.forEach((c) => {
+      addOption(c.id, (c.name || `CONTACT ${c.id}`).toUpperCase());
+    });
+  }
+}
+
+function initCustomContactDropdown() {
+  const trigger = document.getElementById('customContactTrigger');
+  const dropdown = document.getElementById('customContactDropdown');
+  if (!trigger || !dropdown) return;
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = dropdown.classList.contains('hidden');
+    document.querySelectorAll('.custom-select-dropdown').forEach(d => d.classList.add('hidden'));
+    document.querySelectorAll('.custom-select-trigger').forEach(t => t.classList.remove('open'));
+    if (isHidden) {
+      dropdown.classList.remove('hidden');
+      trigger.classList.add('open');
+    }
+  });
+
+  document.addEventListener('click', () => {
+    dropdown.classList.add('hidden');
+    trigger.classList.remove('open');
+  });
+
+  if (dom.contactSelector) {
+    dom.contactSelector.addEventListener('change', () => {
+      renderCustomContactDropdown(state.contacts);
+    });
+  }
+}
+
 function renderContacts(contacts) {
   dom.contactSelector.innerHTML = `
     <option value="">— SELECT CONTACT —</option>
@@ -1122,6 +1201,8 @@ function renderContacts(contacts) {
     }
     dom.contactSelector.appendChild(opt);
   });
+
+  renderCustomContactDropdown(contacts);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1129,6 +1210,8 @@ function renderContacts(contacts) {
 // ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
+  initCustomContactDropdown();
+
   // Theme toggle
   if (dom.themeToggleBtn) {
     dom.themeToggleBtn.addEventListener('click', toggleTheme);
@@ -1352,6 +1435,7 @@ async function init() {
     if (state.contacts.length > 0) {
       state.currentContact = state.contacts[0];
       dom.contactSelector.value = state.contacts[0].id;
+      renderCustomContactDropdown(state.contacts);
       renderContactProfile(state.contacts[0]);
 
       try {

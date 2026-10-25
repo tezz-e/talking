@@ -96,7 +96,6 @@ html, body {
 /* ---------- React Bits Spotlight Card (Cursor Tracking Refractive Sheen) ---------- */
 .spotlight-card {
   position: relative;
-  overflow: hidden;
 }
 
 .spotlight-card::before {
@@ -199,12 +198,17 @@ input:focus, select:focus, textarea:focus {
   flex-shrink: 0;
   gap: 16px;
   min-height: 48px;
+  position: relative;
+  z-index: 100;
+  overflow: visible !important;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 20px;
+  position: relative;
+  overflow: visible !important;
 }
 
 /* Wordmark "talking" in Voice face + Blinking Block Caret */
@@ -241,20 +245,130 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
-/* Contact Selector */
-.contact-selector select {
+/* Custom Animated Contact Selector Dropdown (Apple HIG / Emil Kowalski) */
+.contact-selector-wrap {
+  position: relative;
+  min-width: 190px;
+}
+
+.accessible-select {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.custom-select-trigger {
   font-family: var(--font-machine);
-  font-size: var(--machine-size);
+  font-size: 11px;
   letter-spacing: var(--machine-tracking);
   text-transform: uppercase;
   padding: 6px 12px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-main);
   cursor: pointer;
-  min-width: 180px;
+  min-width: 190px;
   height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  user-select: none;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.custom-select-trigger:hover {
+  border-color: var(--hairline-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--glass-specular-active);
+}
+
+.custom-select-trigger:active {
+  transform: scale(0.97);
+}
+
+.custom-select-trigger.open .custom-select-chevron {
+  transform: rotate(180deg);
+}
+
+.custom-select-chevron {
+  transition: transform 200ms var(--spring-snappy);
+  color: var(--text-muted);
+}
+
+.custom-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  width: max-content;
+  max-width: 300px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: var(--glass-specular), 0 12px 36px rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  z-index: 1000;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transform-origin: top left;
+  animation: dropdownBounceIn 200ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.custom-select-dropdown.hidden {
+  display: none !important;
+}
+
+@keyframes dropdownBounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.94) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.custom-select-item {
+  font-family: var(--font-machine);
+  font-size: 11px;
+  letter-spacing: var(--machine-tracking);
+  text-transform: uppercase;
+  padding: 7px 10px;
+  border-radius: 2px;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 120ms ease, color 120ms ease, transform 120ms var(--spring-snappy);
+}
+
+.custom-select-item:hover {
+  background: var(--hairline-subtle);
+  color: var(--accent);
+  transform: translateX(2px);
+}
+
+.custom-select-item.selected {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.custom-select-divider {
+  height: 1px;
+  background: var(--hairline-subtle);
+  margin: 3px 0;
 }
 
 .header-right {
@@ -419,7 +533,7 @@ input:focus, select:focus, textarea:focus {
   align-self: flex-end;
 }
 
-/* Received: Outlined bubbles with 2px bottom-left tail corner */
+/* Received: Outlined bubbles with 2px bottom-left tail corner & Bouncy Physics */
 .message-incoming .message-bubble {
   background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
@@ -429,9 +543,25 @@ input:focus, select:focus, textarea:focus {
   font-family: var(--font-voice);
   font-size: var(--voice-size);
   line-height: var(--voice-line);
+  box-shadow: var(--glass-specular);
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 220ms ease,
+              border-color 160ms ease;
+  animation: bubbleBounceIn 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  transform-origin: bottom left;
 }
 
-/* Sent: Solid ink bubbles with 2px bottom-right tail corner */
+.message-incoming .message-bubble:hover {
+  transform: translateY(-2px) scale(1.015);
+  box-shadow: var(--glass-specular-active), 0 4px 14px rgba(0, 0, 0, 0.08);
+  border-color: var(--hairline-strong);
+}
+
+.message-incoming .message-bubble:active {
+  transform: scale(0.97);
+}
+
+/* Sent: Solid ink bubbles with 2px bottom-right tail corner & Bouncy Physics */
 .message-outgoing .message-bubble {
   background: var(--ink);
   color: var(--paper);
@@ -441,6 +571,32 @@ input:focus, select:focus, textarea:focus {
   font-family: var(--font-voice);
   font-size: var(--voice-size);
   line-height: var(--voice-line);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.22), 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 220ms ease;
+  animation: bubbleBounceInRight 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  transform-origin: bottom right;
+}
+
+.message-outgoing .message-bubble:hover {
+  transform: translateY(-2px) scale(1.015);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.3), 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+.message-outgoing .message-bubble:active {
+  transform: scale(0.97);
+}
+
+@keyframes bubbleBounceIn {
+  0% { opacity: 0; transform: translateY(14px) scale(0.9); }
+  65% { opacity: 1; transform: translateY(-3px) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bubbleBounceInRight {
+  0% { opacity: 0; transform: translateY(14px) scale(0.9); }
+  65% { opacity: 1; transform: translateY(-3px) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Quoted message container inside bubble */
@@ -1139,16 +1295,19 @@ input:focus, select:focus, textarea:focus {
 
 /* ---------- Contact Sidebar (Right Desk) ---------- */
 .sidebar {
-  width: 360px;
+  width: 380px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-surface);
   border-left: 1px solid var(--hairline);
   height: 100%;
-  overflow-y: auto;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden;
   padding: 16px;
   gap: 16px;
+  box-sizing: border-box;
 }
 
 .sidebar-panel {
@@ -1156,10 +1315,11 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid var(--hairline);
   box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
-  padding: 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  flex-shrink: 0 !important;
 }
 
 .panel-title {
@@ -1196,7 +1356,7 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
 }
 
-/* Segmented Controls for Stage & Goal */
+/* Segmented Controls for Stage & Goal with Clear Boundaries & Bouncy Physics */
 .segmented-label {
   font-family: var(--font-machine);
   font-size: 11px;
@@ -1209,41 +1369,96 @@ input:focus, select:focus, textarea:focus {
 .segmented-group {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
-  background: var(--hairline-subtle);
-  padding: 2px;
-  border: 1px solid var(--hairline);
+  gap: 6px !important;
+  padding: 6px !important;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--hairline-strong);
   box-shadow: var(--glass-specular);
-  border-radius: var(--radius-chrome);
+  border-radius: 4px;
 }
 
 .segmented-btn {
   font-family: var(--font-machine);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: var(--machine-tracking);
   text-transform: uppercase;
-  padding: 4px 6px;
-  border: none;
-  background: transparent;
+  padding: 8px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--bg-app);
   color: var(--text-muted);
-  min-height: 26px;
-  height: 26px;
-  border-radius: 1px;
+  min-height: 36px;
   cursor: pointer;
   text-align: center;
-  transition: transform 120ms var(--spring-snappy), background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  box-shadow: var(--glass-specular);
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 140ms ease,
+              border-color 140ms ease,
+              color 140ms ease,
+              box-shadow 180ms ease;
 }
 
 .segmented-btn:hover:not(.active) {
   color: var(--text-main);
-  background: rgba(0, 0, 0, 0.03);
+  border-color: var(--hairline-strong);
+  background: var(--bg-surface-elevated);
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: var(--glass-specular-active);
+}
+
+.segmented-btn:active {
+  transform: scale(0.92);
 }
 
 .segmented-btn.active {
-  background: var(--bg-app);
-  color: var(--text-main);
-  font-weight: 600;
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  border-color: var(--ink) !important;
+  font-weight: 700;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  animation: optionBounce 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: scale(1.02);
+}
+
+@keyframes optionBounce {
+  0% { transform: scale(0.92); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1.02); }
+}
+
+/* Impression, Strategy Directive, and Context Textareas (Apple HIG Ergonomics) */
+.dossier-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dossier-textarea {
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 12px;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--hairline);
   box-shadow: var(--glass-specular);
+  border-radius: 3px;
+  color: var(--text-main);
+  font-family: var(--font-machine);
+  font-size: 11px;
+  line-height: 18px;
+  letter-spacing: var(--machine-tracking);
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 160ms var(--spring-fluid), box-shadow 160ms var(--spring-fluid);
+}
+
+.dossier-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: var(--glass-specular), 0 0 0 1px var(--accent);
 }
 
 /* Tag Chips for Interests */
@@ -1259,7 +1474,7 @@ input:focus, select:focus, textarea:focus {
   font-size: 11px;
   letter-spacing: var(--machine-tracking);
   text-transform: uppercase;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border: 1px solid var(--hairline);
   box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
@@ -1268,12 +1483,17 @@ input:focus, select:focus, textarea:focus {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: transform 140ms var(--spring-snappy), border-color 140ms ease;
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), border-color 140ms ease;
+  animation: cardSlideIn 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .tag-chip:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.05);
   border-color: var(--hairline-strong);
+}
+
+.tag-chip:active {
+  transform: scale(0.92);
 }
 
 .tag-chip-remove {
@@ -1318,7 +1538,7 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-main);
 }
 
-/* Known Facts Index-Card Rows */
+/* Known Facts Index-Card Rows & Bouncy Entrance */
 .facts-section {
   display: flex;
   flex-direction: column;
@@ -1339,13 +1559,28 @@ input:focus, select:focus, textarea:focus {
 
 .fact-item {
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
-  padding: 6px 8px;
+  padding: 8px 10px;
   background: var(--bg-surface);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+  animation: cardSlideIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 180ms ease, border-color 140ms ease;
+}
+
+.fact-item:hover {
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: var(--glass-specular-active), 0 4px 12px rgba(0, 0, 0, 0.06);
+  border-color: var(--hairline-strong);
+}
+
+@keyframes cardSlideIn {
+  0% { opacity: 0; transform: translateY(8px) scale(0.96); }
+  70% { opacity: 1; transform: translateY(-2px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .fact-item-content {
