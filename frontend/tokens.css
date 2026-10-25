@@ -1,0 +1,114 @@
+/* ============================================================
+   PROOF DESK — DESIGN SYSTEM TOKENS
+   Talking Private Reply-Drafting Tool
+   ============================================================ */
+
+:root {
+  /* ── Light Mode (Paper substrate - default) ── */
+  --bg-app: #F2EFE8;
+  --bg-surface: #E8E4DC;
+  --bg-surface-elevated: #EDE9E1;
+  --bg-surface-subtle: rgba(22, 20, 15, 0.035);
+  --bg-desk: #F7F5F0;
+
+  /* Ink & Typography */
+  --ink: #16140F;
+  --paper: #F2EFE8;
+  --text-main: #16140F;
+  --text-muted: rgba(22, 20, 15, 0.62);
+  --text-faint: rgba(22, 20, 15, 0.38);
+
+  /* Hairlines & Grid */
+  --hairline: rgba(22, 20, 15, 0.18);
+  --hairline-subtle: rgba(22, 20, 15, 0.10);
+  --hairline-strong: rgba(22, 20, 15, 0.32);
+  --grid-line: rgba(22, 20, 15, 0.06);
+
+  /* ONE Accent: Editorial Proofmark */
+  --accent: #FF4F1F;
+  --accent-ink: #FFFFFF;
+  --accent-subtle: rgba(255, 79, 31, 0.08);
+  --accent-hairline: rgba(255, 79, 31, 0.40);
+
+  /* Deleted text strikethrough */
+  --mark-deleted: rgba(22, 20, 15, 0.45);
+  --mark-added: #FF4F1F;
+
+  /* Geometry & Rules */
+  --radius-chrome: 2px;
+  --radius-bubble: 14px;
+  --radius-bubble-tail: 2px;
+  --border-width: 1px;
+
+  /* Baseline grid line height */
+  --baseline-unit: 24px;
+
+  /* Two Registers */
+  --font-voice: "Newsreader", "Source Serif 4", "Lora", Georgia, "Times New Roman", serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-machine: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --voice-size: 15px;
+  --voice-line: 24px;
+
+  --machine-size: 12px;
+  --machine-line: 16px;
+  --machine-tracking: 0.04em;
+  --machine-transform: uppercase;
+}
+
+/* ── Dark Mode (Carbon proof board) ── */
+[data-theme="dark"] {
+  --bg-app: #0F0E0B;
+  --bg-surface: #17150F;
+  --bg-surface-elevated: #1D1B13;
+  --bg-surface-subtle: rgba(236, 231, 218, 0.04);
+  --bg-desk: #13120D;
+
+  --ink: #ECE7DA;
+  --paper: #0F0E0B;
+  --text-main: #ECE7DA;
+  --text-muted: rgba(236, 231, 218, 0.62);
+  --text-faint: rgba(236, 231, 218, 0.38);
+
+  --hairline: rgba(236, 231, 218, 0.18);
+  --hairline-subtle: rgba(236, 231, 218, 0.10);
+  --hairline-strong: rgba(236, 231, 218, 0.32);
+  --grid-line: rgba(236, 231, 218, 0.06);
+
+  --accent: #FF4F1F;
+  --accent-ink: #FFFFFF;
+  --accent-subtle: rgba(255, 79, 31, 0.12);
+  --accent-hairline: rgba(255, 79, 31, 0.50);
+
+  --mark-deleted: rgba(236, 231, 218, 0.45);
+  --mark-added: #FF4F1F;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-app: #0F0E0B;
+    --bg-surface: #17150F;
+    --bg-surface-elevated: #1D1B13;
+    --bg-surface-subtle: rgba(236, 231, 218, 0.04);
+    --bg-desk: #13120D;
+
+    --ink: #ECE7DA;
+    --paper: #0F0E0B;
+    --text-main: #ECE7DA;
+    --text-muted: rgba(236, 231, 218, 0.62);
+    --text-faint: rgba(236, 231, 218, 0.38);
+
+    --hairline: rgba(236, 231, 218, 0.18);
+    --hairline-subtle: rgba(236, 231, 218, 0.10);
+    --hairline-strong: rgba(236, 231, 218, 0.32);
+    --grid-line: rgba(236, 231, 218, 0.06);
+
+    --accent: #FF4F1F;
+    --accent-ink: #FFFFFF;
+    --accent-subtle: rgba(255, 79, 31, 0.12);
+    --accent-hairline: rgba(255, 79, 31, 0.50);
+
+    --mark-deleted: rgba(236, 231, 218, 0.45);
+    --mark-added: #FF4F1F;
+  }
+}

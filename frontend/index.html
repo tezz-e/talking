@@ -1,384 +1,459 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Talking — AI texting autopilot that clones your personality." />
-  <title>Talking 🧠 — AI Texting Autopilot</title>
-
-  <!-- Preconnect for performance -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-  <!-- Google Fonts: Inter + JetBrains Mono -->
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap"
-    rel="stylesheet"
-  />
-
-  <!-- Dashboard Stylesheet -->
-  <link rel="stylesheet" href="/static/style.css" />
-</head>
-<body>
-  <div class="app-container">
-
-    <!-- ============================== HEADER ============================== -->
-    <header class="header">
-      <div class="header-left">
-        <div class="logo">
-          <span class="emoji">✦</span>
-          Talking
-        </div>
-        <div class="contact-selector">
-          <select id="contactSelector" aria-label="Select contact">
-            <option value="">— Select Contact —</option>
-            <option value="__new__">＋ New Contact</option>
-          </select>
-        </div>
-      </div>
-      <div class="header-right">
-        <div class="status-group">
-          <div class="status-indicator">
-            <div class="status-dot" id="statusDot"></div>
-            <span id="statusText">Ready</span>
-          </div>
-          <div class="status-indicator">
-            <span class="mono" style="color:var(--accent-light);" id="memoryCount">0</span>
-            <span>memories</span>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <!-- ============================== MAIN CONTENT ============================== -->
-    <main class="main-content">
-
-      <!-- ==================== CHAT PANEL (Left) ==================== -->
-      <section class="chat-panel">
-
-        <!-- Message History -->
-        <div class="glass message-history" id="messageHistory">
-          <div class="message-history-empty" id="emptyState">
-            <div class="empty-icon">💬</div>
-            <p>No messages yet.<br />Paste their message below to get started.</p>
-          </div>
-        </div>
-
-        <!-- AI Draft Panel (Floating Suggestion Deck) -->
-        <div class="draft-panel" id="draftPanel">
-          <div class="draft-header">
-            <h3>AI Draft</h3>
-            <span class="confidence-badge hidden" id="confidenceBadge">—</span>
-          </div>
-
-          <div class="draft-variants hidden" id="draftVariants"></div>
-
-          <div class="draft-content" id="draftContent">
-            <span class="draft-placeholder">AI-generated response will appear here...</span>
-          </div>
-
-          <div class="draft-actions hidden" id="draftActions">
-            <button class="btn btn-secondary btn-icon" id="editDraftBtn" title="Edit draft">
-              ✏️
-            </button>
-            <button class="btn btn-secondary btn-icon" id="regenBtn" title="Regenerate">
-              🔄
-            </button>
-            <button class="btn btn-primary" id="approveBtn" title="Approve & Copy (Ctrl+Shift+C)">
-              ✅ Approve &amp; Copy
-            </button>
-          </div>
-          <div class="shortcut-hint hidden" id="draftShortcutHint" style="margin-top:4px;">
-            <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">C</span> to copy draft
-          </div>
-        </div>
-
-        <!-- Steering & Pro Mode Bar -->
-        <div class="steering-bar">
-          <button class="btn-pro-mode" id="proModeBtn" title="Toggle Pro Mode (deeper reasoning & strategic steering)">
-            ⚡ Pro Mode
-          </button>
-          <div class="steering-input-wrapper">
-            <span class="steering-icon">🎯</span>
-            <input
-              type="text"
-              id="steeringInput"
-              placeholder="Steer reply (e.g. tease them, make plans, keep it dry)..."
-              title="Give a strategic steering directive for this message"
-            />
-            <button class="btn-clear-steer hidden" id="clearSteerBtn" title="Clear steering directive">✕</button>
-          </div>
-        </div>
-
-        <!-- Input Area -->
-        <div class="glass input-area">
-          <input type="file" id="imageUpload" accept="image/*" class="hidden" />
-          <button class="btn btn-secondary btn-icon" id="uploadImgBtn" title="Upload Screenshot">
-            🖼️
-          </button>
-          <textarea
-            id="messageInput"
-            placeholder="Paste their message or a screenshot here..."
-            rows="1"
-            aria-label="Incoming message input"
-          ></textarea>
-          <button class="btn btn-primary btn-send" id="sendBtn" title="Send (Ctrl+Enter)">
-            ➤
-          </button>
-        </div>
-        <div class="shortcut-hint" style="padding-left: 8px;">
-          <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> to send
-        </div>
-
-</section>
-
-      <!-- ==================== SIDEBAR (Right) ==================== -->
-      <aside class="sidebar">
-
-        <!-- Contact Profile -->
-        <div class="glass sidebar-panel" id="contactProfilePanel">
-          <div class="panel-title">Contact Profile</div>
-
-          <div class="form-group">
-            <label class="form-label" for="contactName">Name</label>
-            <input class="form-input" type="text" id="contactName" placeholder="Their name" />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="contactStage">Relationship Stage</label>
-            <select class="form-select" id="contactStage">
-              <option value="stranger">Stranger</option>
-              <option value="acquaintance">Acquaintance</option>
-              <option value="friend">Friend</option>
-              <option value="close_friend">Close Friend</option>
-              <option value="best_friend">Best Friend</option>
-              <option value="crush">Crush</option>
-              <option value="partner">Partner</option>
-              <option value="ex">Ex</option>
-              <option value="family">Family</option>
-              <option value="colleague">Colleague</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="contactGoal">Conversation Goal</label>
-            <select class="form-select" id="contactGoal">
-              <option value="just_vibing">Just Vibing</option>
-              <option value="make_plans">Make Plans</option>
-              <option value="romantic">Romantic / Flirty</option>
-              <option value="get_to_know">Get to Know</option>
-              <option value="keep_warm">Keep Warm</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="contactImpression">Your Impression</label>
-            <input class="form-input" type="text" id="contactImpression" placeholder="e.g. smart, busy this week" />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="contactStrategyNote">Strategy Directive</label>
-            <input class="form-input" type="text" id="contactStrategyNote" placeholder="e.g. tease about music taste" />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="contactHow">How you know them</label>
-            <input class="form-input" type="text" id="contactHow" placeholder="e.g. College friend" />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="contactInterests">Their interests</label>
-            <input class="form-input" type="text" id="contactInterests" placeholder="e.g. hiking, anime, cooking" />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="contactJokes">Inside jokes</label>
-            <textarea class="form-textarea" id="contactJokes" placeholder="Any inside jokes or references..." rows="2"></textarea>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="contactNotes">Notes</label>
-            <textarea class="form-textarea" id="contactNotes" placeholder="Anything else to remember..." rows="2"></textarea>
-          </div>
-
-          <!-- Known Facts Inspector -->
-          <div class="form-group facts-section" style="margin-top: 14px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-              <label class="form-label" style="margin-bottom:0;">Known Facts (<span id="contactFactCount">0</span>)</label>
-              <button class="btn btn-secondary btn-xs" id="addFactToggleBtn" type="button" style="padding: 2px 8px; font-size: 11px;">+ Add Fact</button>
-            </div>
-            <div id="contactFactList" class="fact-list">
-              <div class="fact-empty-hint">No facts recorded yet.</div>
-            </div>
-            <div id="newFactRow" class="new-fact-row hidden">
-              <select id="newFactCategory" class="form-select fact-cat-select">
-                <option value="preference">Preference</option>
-                <option value="work">Work</option>
-                <option value="life_event">Life Event</option>
-                <option value="pet">Pet</option>
-                <option value="relationship">Relationship</option>
-                <option value="opinion">Opinion</option>
-              </select>
-              <input type="text" id="newFactInput" class="form-input fact-text-input" placeholder="e.g. Prefers matcha over coffee" />
-              <button class="btn btn-primary btn-xs" id="saveNewFactBtn" type="button">Save</button>
-            </div>
-          </div>
-
-          <button class="btn btn-primary" id="saveContactBtn" style="width:100%; margin-top:8px;">
-            💾 Save Contact
-          </button>
-        </div>
-
-        <!-- AI Controls -->
-        <div class="glass sidebar-panel">
-          <div class="panel-title">AI Controls</div>
-
-          <div class="form-group">
-            <label class="form-label">Mood</label>
-            <div class="mood-selector" id="moodSelector">
-              <button class="mood-chip active" data-mood="default">default</button>
-              <button class="mood-chip" data-mood="chill">chill</button>
-              <button class="mood-chip" data-mood="flirty">flirty</button>
-              <button class="mood-chip" data-mood="deep">deep</button>
-              <button class="mood-chip" data-mood="funny">funny</button>
-              <button class="mood-chip" data-mood="dry">dry</button>
-            </div>
-          </div>
-
-          <div style="margin-top:14px;">
-            <div class="stat-row">
-              <span class="stat-label">Status</span>
-              <span class="stat-value" id="aiStatusText">Ready</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-label">Memory count</span>
-              <span class="stat-value mono" id="aiMemoryCount">—</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Data Management -->
-        <div class="glass sidebar-panel">
-          <div class="panel-title">Data Management</div>
-
-          <button class="btn data-btn" id="ingestBtn">
-            <span class="icon">📥</span>
-            Ingest Chat Data
-          </button>
-
-          <button class="btn data-btn" id="editSoulBtn">
-            <span class="icon">🧬</span>
-            Edit SOUL.md
-          </button>
-
-          <button class="btn data-btn" id="viewStyleBtn">
-            <span class="icon">🎨</span>
-            View STYLE.md
-          </button>
-        </div>
-
-      </aside>
-    </main>
-  </div>
-
-  <!-- ============================== MODALS ============================== -->
-
-  <!-- SOUL.md Editor Modal -->
-  <div class="modal-overlay" id="soulModal">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>🧬 Edit SOUL.md</h2>
-        <button class="modal-close" onclick="hideModal('soulModal')">✕</button>
-      </div>
-      <div class="modal-body">
-        <textarea id="soulEditor" placeholder="Loading SOUL.md..."></textarea>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="hideModal('soulModal')">Cancel</button>
-        <button class="btn btn-primary" id="saveSoulBtn">💾 Save</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- STYLE.md Viewer Modal -->
-  <div class="modal-overlay" id="styleModal">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>🎨 STYLE.md</h2>
-        <button class="modal-close" onclick="hideModal('styleModal')">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="read-only-content" id="styleContent">Loading...</div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="hideModal('styleModal')">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Ingest Modal -->
-  <div class="modal-overlay" id="ingestModal">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>📥 Ingest Chat Data</h2>
-        <button class="modal-close" onclick="hideModal('ingestModal')">✕</button>
-      </div>
-      <div class="modal-body">
-
-        <div class="form-group">
-          <label class="form-label">Source Platform</label>
-          <div class="ingest-options" id="ingestSourceOptions">
-            <div class="ingest-option selected" data-source="instagram">
-              <span class="icon">📸</span>
-              <span class="label">Instagram</span>
-            </div>
-            <div class="ingest-option" data-source="whatsapp">
-              <span class="icon">💬</span>
-              <span class="label">WhatsApp</span>
-            </div>
-            <div class="ingest-option" data-source="telegram">
-              <span class="icon">✈️</span>
-              <span class="label">Telegram</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="ingestUserName">Your display name (as it appears in chats)</label>
-          <input class="form-input" type="text" id="ingestUserName" placeholder="e.g. John, john_doe" />
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="ingestPath">Export folder path (optional)</label>
-          <input class="form-input" type="text" id="ingestPath" placeholder="Leave empty to use data/exports/" />
-        </div>
-
-        <div class="ingest-hint">
-          💡 <strong>Tip:</strong> Place your exported chat files in the <code>data/exports/</code> folder, then leave the path field empty. The system will automatically find and process them.
-        </div>
-
-        <div class="progress-container hidden" id="ingestProgressContainer">
-          <div class="progress-label">
-            <span id="ingestProgressText">Starting ingestion...</span>
-            <span id="ingestProgressPercent">0%</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" id="ingestProgressBar"></div>
-          </div>
-        </div>
-
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="hideModal('ingestModal')">Cancel</button>
-        <button class="btn btn-primary" id="startIngestBtn">🚀 Start Ingestion</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================== TOAST CONTAINER ============================== -->
-  <div class="toast-container" id="toastContainer"></div>
-
-  <!-- Dashboard Script -->
-  <script src="/static/app.js"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Talking — Private reply-drafting desk and conversational proofing studio." />
+  <title>Talking — Editorial Proof Desk · AI Texting Autopilot</title>
+
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Fonts: Newsreader (Voice) + Geist Mono / JetBrains Mono (Machine) -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400&family=Geist+Mono:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Design System Tokens & Proof Desk Stylesheet -->
+  <link rel="stylesheet" href="/static/tokens.css" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- ============================== HEADER ============================== -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo" title="Talking Proof Desk">
+          talking<span class="block-caret" aria-hidden="true"></span>
+        </div>
+        <div class="contact-selector">
+          <select id="contactSelector" aria-label="Select contact">
+            <option value="">— SELECT CONTACT —</option>
+            <option value="__new__">＋ NEW CONTACT</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="status-group">
+          <div class="status-indicator">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">READY</span>
+          </div>
+          <div class="memory-indicator">
+            <span class="mono" id="memoryCount">0</span> MEM
+          </div>
+        </div>
+
+        <button class="theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle Light/Dark Theme (Alt+T)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          <span id="themeToggleText">LIGHT</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ============================== MAIN CONTENT ============================== -->
+    <main class="main-content">
+
+      <!-- ==================== CHAT STUDIO (Left) ==================== -->
+      <section class="chat-panel">
+
+        <!-- Message History Thread (Flex-1, auto-scrolls, never obscured) -->
+        <div class="message-history" id="messageHistory" role="log" aria-live="polite">
+          <div class="message-history-empty" id="emptyState">
+            <div class="empty-icon-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <p>No messages recorded yet.<br />Paste incoming message below to begin proofing.</p>
+          </div>
+        </div>
+
+        <!-- AI Draft Panel (Docked Proof Desk on 24px Baseline Grid) -->
+        <div class="draft-panel" id="draftPanel">
+          <!-- Empty Draft State (~40px row) -->
+          <div class="draft-empty-row" id="draftEmptyRow">
+            <span class="machine">NO DRAFT · Ctrl+Enter to generate</span>
+            <span class="machine empty-shortcut">PROMPT READY</span>
+          </div>
+
+          <!-- Active Draft Desk Header (Hidden until draft exists) -->
+          <div class="draft-header hidden" id="draftHeader">
+            <div class="draft-header-left">
+              <span class="draft-title">PROOF DESK</span>
+              <span class="confidence-badge" id="confidenceBadge">—</span>
+              <span class="draft-provenance hidden" id="draftProvenance"></span>
+            </div>
+            <div class="draft-header-right">
+              <button class="btn-marks-toggle" id="marksToggleBtn" type="button" title="Toggle word diff revision marks">
+                MARKS
+              </button>
+            </div>
+          </div>
+
+          <!-- Tone Takes Tabs (A · CHILL [2], B · DIRECT, C · BANTER [2]) -->
+          <div class="draft-variants hidden" id="draftVariants" role="tablist"></div>
+
+          <!-- Draft Content Area: Voice face resting on 24px baseline lines -->
+          <div class="draft-content hidden" id="draftContent" role="region" aria-label="Draft text">
+            <span class="draft-placeholder">AI-generated response will appear here...</span>
+          </div>
+
+          <!-- Draft Desk Actions -->
+          <div class="draft-actions hidden" id="draftActions">
+            <div class="draft-actions-left">
+              <button class="btn-icon-editorial" id="editDraftBtn" type="button" title="Edit draft manually">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+              <button class="btn-icon-editorial" id="regenBtn" type="button" title="Regenerate variants">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+              </button>
+            </div>
+            <div class="draft-actions-right">
+              <button class="btn-approve" id="approveBtn" type="button" title="Approve &amp; Copy (Ctrl+Shift+C)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>APPROVE &amp; COPY</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="shortcut-hint hidden" id="draftShortcutHint">
+            <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">C</span> TO COPY DRAFT
+          </div>
+        </div>
+
+        <!-- Composer Section (ONE input + Secondary margin-note row) -->
+        <div class="composer-section">
+
+          <!-- Secondary Margin-Note Row (Revealed by Note button or Ctrl+K) -->
+          <div class="margin-note-row hidden" id="marginNoteRow">
+            <span class="margin-note-label">NOTE:</span>
+            <input
+              type="text"
+              id="steeringInput"
+              class="margin-note-input"
+              placeholder="Steer reply (e.g. tease them, make plans, keep it dry)..."
+              title="Editorial directive for this draft"
+            />
+            <button class="btn-clear-note hidden" id="clearSteerBtn" type="button" title="Clear directive">✕</button>
+          </div>
+
+          <!-- Composer Row -->
+          <div class="composer-row">
+            <!-- Native file input kept visually hidden in DOM -->
+            <input type="file" id="imageUpload" accept="image/*" class="visually-hidden" />
+            
+            <button class="btn-attach" id="uploadImgBtn" type="button" title="Attach screenshot or image">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+
+            <button class="btn-pro-toggle" id="proModeBtn" type="button" title="Toggle Pro Mode (deeper reasoning &amp; strategic steering)">
+              PRO [OFF]
+            </button>
+
+            <button class="btn-note-toggle" id="noteToggleBtn" type="button" title="Add steering margin note (Ctrl+K)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span>NOTE</span>
+            </button>
+
+            <div class="composer-textarea-wrapper">
+              <textarea
+                id="messageInput"
+                placeholder="Paste their message or transcript here..."
+                rows="1"
+                aria-label="Incoming message input"
+              ></textarea>
+            </div>
+
+            <button class="btn-send" id="sendBtn" type="button" title="Generate Drafts (Ctrl+Enter)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+
+          <div class="composer-footer">
+            <span><span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> TO GENERATE</span>
+            <span><span class="kbd">Ctrl</span>+<span class="kbd">K</span> FOR NOTE</span>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ==================== CONTACT SIDEBAR (Right) ==================== -->
+      <aside class="sidebar">
+
+        <!-- Contact Profile Panel -->
+        <div class="sidebar-panel" id="contactProfilePanel">
+          <div class="panel-title">CONTACT DOSSIER</div>
+
+          <!-- Name Block -->
+          <div class="contact-name-block">
+            <label class="segmented-label" for="contactName">CONTACT NAME</label>
+            <input class="contact-name-input" type="text" id="contactName" placeholder="Name or alias" />
+          </div>
+
+          <!-- Relationship Stage (Segmented Control & Original Select Source of Truth) -->
+          <div class="form-group">
+            <div class="segmented-label">RELATIONSHIP STAGE</div>
+            <select class="form-select hidden" id="contactStage">
+              <option value="stranger">Stranger</option>
+              <option value="acquaintance">Acquaintance</option>
+              <option value="friend">Friend</option>
+              <option value="close_friend">Close Friend</option>
+              <option value="best_friend">Best Friend</option>
+              <option value="crush">Crush</option>
+              <option value="partner">Partner</option>
+              <option value="ex">Ex</option>
+              <option value="family">Family</option>
+              <option value="colleague">Colleague</option>
+            </select>
+            <div class="segmented-group" id="stageSegmentedGroup">
+              <button type="button" class="segmented-btn active" data-val="stranger">STRANGER</button>
+              <button type="button" class="segmented-btn" data-val="friend">FRIEND</button>
+              <button type="button" class="segmented-btn" data-val="close_friend">CLOSE</button>
+              <button type="button" class="segmented-btn" data-val="crush">CRUSH</button>
+              <button type="button" class="segmented-btn" data-val="partner">PARTNER</button>
+              <button type="button" class="segmented-btn" data-val="colleague">WORK</button>
+            </div>
+          </div>
+
+          <!-- Conversation Goal (Segmented Control & Original Select Source of Truth) -->
+          <div class="form-group">
+            <div class="segmented-label">CONVERSATION GOAL</div>
+            <select class="form-select hidden" id="contactGoal">
+              <option value="just_vibing">Just Vibing</option>
+              <option value="make_plans">Make Plans</option>
+              <option value="romantic">Romantic / Flirty</option>
+              <option value="get_to_know">Get to Know</option>
+              <option value="keep_warm">Keep Warm</option>
+            </select>
+            <div class="segmented-group" id="goalSegmentedGroup">
+              <button type="button" class="segmented-btn active" data-val="just_vibing">VIBING</button>
+              <button type="button" class="segmented-btn" data-val="make_plans">PLANS</button>
+              <button type="button" class="segmented-btn" data-val="romantic">ROMANTIC</button>
+              <button type="button" class="segmented-btn" data-val="get_to_know">EXPLORE</button>
+              <button type="button" class="segmented-btn" data-val="keep_warm">WARM</button>
+            </div>
+          </div>
+
+          <!-- Impression & Directive -->
+          <div class="form-group">
+            <label class="segmented-label" for="contactImpression">IMPRESSION</label>
+            <input class="form-input mono" type="text" id="contactImpression" placeholder="e.g. smart, busy this week" />
+          </div>
+
+          <div class="form-group">
+            <label class="segmented-label" for="contactStrategyNote">STRATEGY DIRECTIVE</label>
+            <input class="form-input mono" type="text" id="contactStrategyNote" placeholder="e.g. tease about music taste" />
+          </div>
+
+          <div class="form-group">
+            <label class="segmented-label" for="contactHow">HOW YOU MET</label>
+            <input class="form-input mono" type="text" id="contactHow" placeholder="e.g. College friend" />
+          </div>
+
+          <!-- Interests as Removable Tag Chips -->
+          <div class="form-group">
+            <label class="segmented-label" for="contactInterests">INTERESTS</label>
+            <input class="form-input mono" type="text" id="contactInterests" placeholder="e.g. hiking, anime, vinyl" />
+            <div class="tags-container" id="interestsTagsContainer"></div>
+          </div>
+
+          <!-- Inside Jokes as List Lines -->
+          <div class="form-group">
+            <label class="segmented-label" for="contactJokes">INSIDE JOKES &amp; LORE</label>
+            <textarea class="form-textarea mono" id="contactJokes" placeholder="Inside references (one per line)..." rows="2"></textarea>
+            <div id="jokesListContainer"></div>
+          </div>
+
+          <!-- Collapsible Notes Drawer -->
+          <details class="notes-details">
+            <summary class="notes-summary">ADDITIONAL DOSSIER NOTES</summary>
+            <textarea class="form-textarea mono" id="contactNotes" placeholder="Detailed background notes..." rows="3" style="width:100%; margin-top:6px;"></textarea>
+          </details>
+
+          <!-- Known Facts Inspector: Index-Card Rows -->
+          <div class="facts-section">
+            <div class="facts-header">
+              <span class="segmented-label" style="margin-bottom:0;">KNOWN FACTS (<span id="contactFactCount">0</span>)</span>
+              <button class="btn btn-secondary btn-xs" id="addFactToggleBtn" type="button" style="padding: 2px 6px; font-size: 10px;">+ RECORD FACT</button>
+            </div>
+
+            <div id="contactFactList" class="fact-list">
+              <div class="fact-empty-hint machine" style="font-size:11px; color:var(--text-muted); padding:4px 0;">NO FACTS RECORDED YET.</div>
+            </div>
+
+            <div id="newFactRow" class="new-fact-row hidden">
+              <select id="newFactCategory" class="form-select fact-cat-select">
+                <option value="preference">PREFERENCE</option>
+                <option value="work">WORK</option>
+                <option value="life_event">LIFE EVENT</option>
+                <option value="pet">PET</option>
+                <option value="relationship">RELATIONSHIP</option>
+                <option value="opinion">OPINION</option>
+              </select>
+              <input type="text" id="newFactInput" class="form-input fact-text-input" placeholder="e.g. Prefers matcha over coffee" />
+              <button class="btn btn-primary btn-xs" id="saveNewFactBtn" type="button" style="height:26px;">SAVE FACT</button>
+            </div>
+          </div>
+
+          <button class="btn-approve" id="saveContactBtn" type="button" style="width:100%; justify-content:center; margin-top:4px;">
+            SAVE DOSSIER
+          </button>
+        </div>
+
+        <!-- AI Tone & Mood Registers -->
+        <div class="sidebar-panel">
+          <div class="panel-title">VOICE REGISTER</div>
+
+          <div class="form-group">
+            <div class="segmented-label">ACTIVE ENERGY REGISTER</div>
+            <div class="mood-selector" id="moodSelector">
+              <button class="mood-chip active" data-mood="default">DEFAULT</button>
+              <button class="mood-chip" data-mood="chill">CHILL</button>
+              <button class="mood-chip" data-mood="flirty">FLIRTY</button>
+              <button class="mood-chip" data-mood="deep">DEEP</button>
+              <button class="mood-chip" data-mood="funny">FUNNY</button>
+              <button class="mood-chip" data-mood="dry">DRY</button>
+            </div>
+          </div>
+
+          <div style="margin-top:4px;">
+            <div class="stat-row">
+              <span class="stat-label">ENGINE STATUS</span>
+              <span class="stat-value" id="aiStatusText">READY</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">TOTAL MEMORIES</span>
+              <span class="stat-value mono" id="aiMemoryCount">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Management -->
+        <div class="sidebar-panel">
+          <div class="panel-title">SYSTEM ARCHIVES</div>
+
+          <button class="data-btn" id="ingestBtn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>INGEST CHAT LOGS</span>
+          </button>
+
+          <button class="data-btn" id="editSoulBtn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            <span>EDIT SOUL.MD</span>
+          </button>
+
+          <button class="data-btn" id="viewStyleBtn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+            <span>VIEW STYLE.MD</span>
+          </button>
+        </div>
+
+      </aside>
+    </main>
+  </div>
+
+  <!-- ============================== MODALS ============================== -->
+
+  <!-- SOUL.md Editor Modal -->
+  <div class="modal-overlay hidden" id="soulModal" role="dialog" aria-modal="true" aria-labelledby="soulModalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="soulModalTitle">SOUL.MD EDITORIAL REGISTER</h2>
+        <button class="modal-close" onclick="hideModal('soulModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="soulEditor" placeholder="Loading SOUL.md..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="hideModal('soulModal')">CANCEL</button>
+        <button class="btn-approve" id="saveSoulBtn">SAVE SOUL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STYLE.md Viewer Modal -->
+  <div class="modal-overlay hidden" id="styleModal" role="dialog" aria-modal="true" aria-labelledby="styleModalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="styleModalTitle">STYLE.MD SPECIFICATION</h2>
+        <button class="modal-close" onclick="hideModal('styleModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="read-only-content" id="styleContent">Loading...</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="hideModal('styleModal')">DISMISS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ingest Modal -->
+  <div class="modal-overlay hidden" id="ingestModal" role="dialog" aria-modal="true" aria-labelledby="ingestModalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="ingestModalTitle">INGEST HISTORICAL TRANSCRIPTS</h2>
+        <button class="modal-close" onclick="hideModal('ingestModal')">✕</button>
+      </div>
+      <div class="modal-body">
+
+        <div class="form-group">
+          <label class="segmented-label">SOURCE PLATFORM</label>
+          <div class="ingest-options" id="ingestSourceOptions">
+            <div class="ingest-option selected" data-source="instagram">
+              <span class="machine" style="font-weight:600;">INSTAGRAM</span>
+              <span class="machine" style="font-size:10px; color:var(--text-muted);">DIRECT EXPORT</span>
+            </div>
+            <div class="ingest-option" data-source="whatsapp">
+              <span class="machine" style="font-weight:600;">WHATSAPP</span>
+              <span class="machine" style="font-size:10px; color:var(--text-muted);">&gt; CHAT.TXT</span>
+            </div>
+            <div class="ingest-option" data-source="telegram">
+              <span class="machine" style="font-weight:600;">TELEGRAM</span>
+              <span class="machine" style="font-size:10px; color:var(--text-muted);">JSON ARCHIVE</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="segmented-label" for="ingestUserName">YOUR DISPLAY NAME IN EXPORTS</label>
+          <input class="form-input mono" type="text" id="ingestUserName" placeholder="e.g. John, john_doe" />
+        </div>
+
+        <div class="form-group">
+          <label class="segmented-label" for="ingestPath">ARCHIVE FOLDER PATH (OPTIONAL)</label>
+          <input class="form-input mono" type="text" id="ingestPath" placeholder="Leave empty to use data/exports/" />
+        </div>
+
+        <div class="ingest-hint">
+          Drop your exported chat archives into <code>data/exports/</code>, then leave the path field blank.
+        </div>
+
+        <div class="progress-container hidden" id="ingestProgressContainer">
+          <div class="progress-label">
+            <span id="ingestProgressText">STARTING INGESTION...</span>
+            <span id="ingestProgressPercent">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="ingestProgressBar"></div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="hideModal('ingestModal')">CANCEL</button>
+        <button class="btn-approve" id="startIngestBtn">BEGIN INGEST</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Dashboard Script -->
+  <script src="/static/app.js"></script>
+</body>
+</html>

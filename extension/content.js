@@ -1,7 +1,8 @@
 /**
  * Talking Copilot — In-Page Content Script
  * =======================================
- * Integrates WhatsApp Web and Instagram Direct with the local Talking autopilot.
+ * Proof Desk Design System for WhatsApp Web and Instagram Direct.
+ * Rendered inside an isolated Shadow DOM with automatic theme detection.
  */
 
 (function () {
@@ -17,6 +18,472 @@
     isProMode = localStorage.getItem('talking_copilot_pro') === 'true';
   } catch {}
 
+  // ── Shadow DOM Infrastructure ───────────────────────────────────────
+  let shadowHost = null;
+  let shadowRoot = null;
+
+  const COPILOT_CSS = `
+    :host, [data-theme="light"] {
+      --tk-paper: #F2EFE8;
+      --tk-bg: #F7F5F0;
+      --tk-surface: #E8E4DC;
+      --tk-surface-elevated: #EDE9E1;
+      --tk-ink: #16140F;
+      --tk-text: #16140F;
+      --tk-text-muted: rgba(22, 20, 15, 0.62);
+      --tk-text-faint: rgba(22, 20, 15, 0.38);
+      --tk-hairline: rgba(22, 20, 15, 0.18);
+      --tk-hairline-subtle: rgba(22, 20, 15, 0.10);
+      --tk-hairline-strong: rgba(22, 20, 15, 0.32);
+      --tk-grid: rgba(22, 20, 15, 0.06);
+      --tk-accent: #FF4F1F;
+      --tk-font-voice: "Newsreader", "Source Serif 4", Georgia, "Times New Roman", serif, "Apple Color Emoji", "Segoe UI Emoji";
+      --tk-font-machine: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    :host([data-theme="dark"]), [data-theme="dark"] {
+      --tk-paper: #0F0E0B;
+      --tk-bg: #13120D;
+      --tk-surface: #17150F;
+      --tk-surface-elevated: #1D1B13;
+      --tk-ink: #ECE7DA;
+      --tk-text: #ECE7DA;
+      --tk-text-muted: rgba(236, 231, 218, 0.62);
+      --tk-text-faint: rgba(236, 231, 218, 0.38);
+      --tk-hairline: rgba(236, 231, 218, 0.18);
+      --tk-hairline-subtle: rgba(236, 231, 218, 0.10);
+      --tk-hairline-strong: rgba(236, 231, 218, 0.32);
+      --tk-grid: rgba(236, 231, 218, 0.06);
+      --tk-accent: #FF4F1F;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      box-shadow: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    /* Floating Launch Pill: 2px radius rectangle with mono TALK Alt+D and block caret */
+    #talking-copilot-pill {
+      position: fixed;
+      bottom: 80px;
+      right: 28px;
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--tk-bg);
+      border: 1px solid var(--tk-hairline-strong);
+      border-radius: 2px;
+      color: var(--tk-text);
+      font-family: var(--tk-font-machine);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 7px 12px;
+      cursor: pointer;
+      user-select: none;
+      min-height: 32px;
+      line-height: 1;
+    }
+
+    #talking-copilot-pill:hover {
+      background: var(--tk-surface);
+      border-color: var(--tk-accent);
+    }
+
+    .tk-brand-wordmark {
+      font-family: var(--tk-font-voice);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--tk-text);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      text-transform: lowercase;
+    }
+
+    .tk-block-caret {
+      display: inline-block;
+      width: 6px;
+      height: 13px;
+      background-color: var(--tk-accent);
+      animation: tk-caret-blink 1s steps(1) infinite;
+    }
+
+    @keyframes tk-caret-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tk-block-caret {
+        animation: none;
+        opacity: 1;
+      }
+    }
+
+    .tk-pill-kbd {
+      font-family: var(--tk-font-machine);
+      font-size: 10px;
+      color: var(--tk-text-muted);
+      border-left: 1px solid var(--tk-hairline);
+      padding-left: 8px;
+    }
+
+    /* Floating Modal: Editorial Proof Desk */
+    #talking-copilot-modal {
+      position: fixed;
+      bottom: 120px;
+      right: 28px;
+      width: 440px;
+      max-width: calc(100vw - 40px);
+      background: var(--tk-bg);
+      border: 1px solid var(--tk-hairline-strong);
+      border-radius: 2px;
+      z-index: 2147483647;
+      color: var(--tk-text);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #talking-copilot-modal::before {
+      content: "⌜";
+      position: absolute;
+      top: 2px;
+      left: 4px;
+      font-family: var(--tk-font-machine);
+      font-size: 10px;
+      color: var(--tk-hairline-strong);
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    #talking-copilot-modal::after {
+      content: "⌟";
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-family: var(--tk-font-machine);
+      font-size: 10px;
+      color: var(--tk-hairline-strong);
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .tk-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      background: var(--tk-surface);
+      border-bottom: 1px solid var(--tk-hairline);
+    }
+
+    .tk-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tk-brand {
+      font-family: var(--tk-font-voice);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--tk-text);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      text-transform: lowercase;
+    }
+
+    .tk-contact-tag {
+      font-family: var(--tk-font-machine);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border: 1px solid var(--tk-hairline);
+      border-radius: 2px;
+      color: var(--tk-text-muted);
+      max-width: 160px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tk-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--tk-text-muted);
+      font-family: var(--tk-font-machine);
+      font-size: 13px;
+      cursor: pointer;
+      padding: 2px 4px;
+      line-height: 1;
+      min-height: auto;
+    }
+
+    .tk-close-btn:hover {
+      color: var(--tk-accent);
+    }
+
+    .tk-body {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background-color: var(--tk-bg);
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 23px,
+        var(--tk-grid) 23px,
+        var(--tk-grid) 24px
+      );
+      background-size: 100% 24px;
+      background-position: top left;
+    }
+
+    .tk-incoming-snippet {
+      font-family: var(--tk-font-voice);
+      font-size: 13px;
+      line-height: 20px;
+      color: var(--tk-text-muted);
+      border-left: 2px solid var(--tk-accent);
+      padding: 2px 8px;
+      background: var(--tk-surface);
+      border-radius: 2px;
+    }
+
+    .tk-loading-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 18px 0;
+      font-family: var(--tk-font-machine);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--tk-text-muted);
+      justify-content: center;
+    }
+
+    .tk-variants-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border-bottom: 1px solid var(--tk-hairline-subtle);
+      padding-bottom: 4px;
+    }
+
+    .tk-variant-btn {
+      font-family: var(--tk-font-machine);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 4px 8px;
+      color: var(--tk-text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 0;
+      min-height: 26px;
+    }
+
+    .tk-variant-btn.tk-active {
+      color: var(--tk-text);
+      font-weight: 600;
+      border-bottom: 2px solid var(--tk-accent);
+    }
+
+    .tk-variant-count-badge {
+      font-family: var(--tk-font-machine);
+      font-size: 9px;
+      border: 1px solid var(--tk-hairline);
+      padding: 0 3px;
+      border-radius: 2px;
+      color: var(--tk-text-muted);
+    }
+
+    .tk-variant-btn.tk-active .tk-variant-count-badge {
+      border-color: var(--tk-accent);
+      color: var(--tk-accent);
+    }
+
+    .tk-bubbles-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .tk-bubble-item {
+      align-self: flex-end;
+      max-width: 85%;
+      border: 1px dashed var(--tk-accent);
+      background: var(--tk-paper);
+      color: var(--tk-text);
+      border-radius: 14px 14px 2px 14px;
+      padding: 6px 12px;
+      font-family: var(--tk-font-voice);
+      font-size: 14px;
+      line-height: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .tk-bubble-item:hover {
+      border-color: var(--tk-ink);
+    }
+
+    .tk-bubble-num {
+      font-family: var(--tk-font-machine);
+      font-size: 10px;
+      color: var(--tk-accent);
+      user-select: none;
+    }
+
+    .tk-bubble-text {
+      font-family: var(--tk-font-voice);
+      font-size: 14px;
+      line-height: 22px;
+    }
+
+    .tk-bubble-insert-icon {
+      font-family: var(--tk-font-machine);
+      font-size: 11px;
+      color: var(--tk-text-muted);
+      margin-left: auto;
+    }
+
+    .tk-draft-textarea {
+      width: 100%;
+      min-height: 72px;
+      background: transparent;
+      border: 1px solid var(--tk-hairline);
+      border-radius: 2px;
+      padding: 8px 10px;
+      font-family: var(--tk-font-voice);
+      font-size: 14px;
+      line-height: 22px;
+      color: var(--tk-text);
+      resize: vertical;
+      outline: none;
+    }
+
+    .tk-draft-textarea:focus {
+      border-color: var(--tk-accent);
+    }
+
+    .tk-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      background: var(--tk-surface);
+      border-top: 1px solid var(--tk-hairline);
+    }
+
+    .tk-left-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tk-right-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tk-pro-toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--tk-font-machine);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--tk-text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .tk-pro-toggle input {
+      accent-color: var(--tk-accent);
+    }
+
+    .tk-btn {
+      font-family: var(--tk-font-machine);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 2px;
+      border: 1px solid var(--tk-hairline);
+      background: var(--tk-bg);
+      color: var(--tk-text);
+      cursor: pointer;
+      min-height: 30px;
+    }
+
+    .tk-btn:hover {
+      background: var(--tk-surface-elevated);
+      border-color: var(--tk-hairline-strong);
+    }
+
+    .tk-btn-primary {
+      background: var(--tk-ink) !important;
+      color: var(--tk-paper) !important;
+      border: 1px solid var(--tk-ink) !important;
+      font-weight: 600;
+    }
+
+    .tk-btn-primary:hover {
+      opacity: 0.92;
+    }
+  `;
+
+  function ensureShadowRoot() {
+    if (!shadowHost) {
+      shadowHost = document.getElementById('talking-copilot-host');
+    }
+    if (!shadowHost) {
+      shadowHost = document.createElement('div');
+      shadowHost.id = 'talking-copilot-host';
+      shadowHost.style.display = 'contents';
+      document.body.appendChild(shadowHost);
+    }
+    if (!shadowRoot) {
+      shadowRoot = shadowHost.shadowRoot || shadowHost.attachShadow({ mode: 'open' });
+    }
+
+    // Follow WhatsApp / host current light/dark theme
+    const isDark = document.body.classList.contains('dark') || 
+                   document.documentElement.classList.contains('dark') ||
+                   window.matchMedia('(prefers-color-scheme: dark)').matches;
+    shadowHost.setAttribute('data-theme', isDark ? 'dark' : 'light');
+
+    if (!shadowRoot.querySelector('style#talking-copilot-styles')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'talking-copilot-styles';
+      styleEl.textContent = COPILOT_CSS;
+      shadowRoot.appendChild(styleEl);
+    }
+
+    return shadowRoot;
+  }
+
   // ── Platform Detection ──────────────────────────────────────────────
   const isWhatsApp = () => window.location.hostname.includes('web.whatsapp.com') || window.__MOCK_PLATFORM__ === 'whatsapp';
   const isInstagram = () => window.location.hostname.includes('instagram.com') || window.__MOCK_PLATFORM__ === 'instagram';
@@ -25,7 +492,6 @@
 
   function getActiveContactName() {
     if (isWhatsApp()) {
-      // WhatsApp header title
       const titleEl =
         document.querySelector('header span[dir="auto"]') ||
         document.querySelector('header [data-testid="conversation-info-header-chat-title"]') ||
@@ -34,7 +500,6 @@
     }
 
     if (isInstagram()) {
-      // Instagram Direct conversation header
       const headerEl =
         document.querySelector('main header h2') ||
         document.querySelector('main header span[dir="auto"]') ||
@@ -46,11 +511,8 @@
     return 'Friend';
   }
 
-  // ── Quoted & Swipe-to-Reply Detection ──────────────────────────────
-
   function getActiveReplyBarContext() {
     if (isWhatsApp()) {
-      // WhatsApp Web renders the active reply preview inside footer
       const replyBar =
         document.querySelector('footer [data-testid="quoted-message"]') ||
         document.querySelector('footer [data-testid="quote-message-container"]') ||
@@ -63,7 +525,6 @@
           replyBar.querySelector('span[dir="auto"]');
         const sender = senderEl ? senderEl.textContent.trim() : '';
 
-        // Extract message content from the quote preview
         const clone = replyBar.cloneNode(true);
         clone.querySelectorAll('button, [data-testid="cancel-reply"]').forEach((b) => b.remove());
         let quoteText = clone.textContent.trim();
@@ -78,7 +539,6 @@
     }
 
     if (isInstagram()) {
-      // Instagram Direct renders a reply banner directly above the text input
       const footer =
         document.querySelector('div[role="main"] footer') ||
         document.querySelector('footer');
@@ -112,7 +572,6 @@
   }
 
   function getLastIncomingMessage() {
-    // 1. If user swiped or clicked reply to a specific message, prioritize active reply bar
     const activeReply = getActiveReplyBarContext();
     if (activeReply) {
       return activeReply;
@@ -123,7 +582,6 @@
       if (incomingNodes.length === 0) return '';
       const last = incomingNodes[incomingNodes.length - 1];
 
-      // Check if this incoming bubble quotes a previous message
       let quotedContext = '';
       const quotedEl =
         last.querySelector('[data-testid="quoted-message"]') ||
@@ -143,7 +601,6 @@
         text = text.replace(quotedEl.textContent.trim(), '').trim();
       }
 
-      // Media checks
       const img = last.querySelector('img[src]');
       const isSticker = last.querySelector('[data-testid="sticker"]') || (img && img.src && img.src.includes('sticker'));
       const isVoice = last.querySelector('[data-testid="audio-play"]') || last.querySelector('audio') || last.querySelector('span[data-icon*="audio"]');
@@ -170,13 +627,10 @@
       const mainContainer = document.querySelector('div[role="main"]') || document.querySelector('main');
       if (!mainContainer) return '';
 
-      // Check all candidate bubbles in main direct thread
       const candidateElements = Array.from(mainContainer.querySelectorAll('div[dir="auto"], a[href*="/reel/"], a[href*="/p/"], div[role="button"] img, img'));
 
       for (let i = candidateElements.length - 1; i >= 0; i--) {
         const el = candidateElements[i];
-
-        // Filter out header, footer/input, nav, or user avatars
         if (el.closest('header') || el.closest('footer') || el.closest('form') || el.closest('nav')) continue;
         if (el.tagName.toLowerCase() === 'img') {
           const w = el.width || parseInt(el.getAttribute('width') || '0', 10) || el.getBoundingClientRect().width;
@@ -184,7 +638,6 @@
           if (w < 40 && h < 40 && w > 0) continue;
         }
 
-        // Alignment check: find if outgoing ('you') or incoming ('them')
         let isOutgoing = false;
         let curr = el;
         while (curr && curr !== mainContainer) {
@@ -224,7 +677,6 @@
 
         if (isOutgoing) continue;
 
-        // Check if the message bubble has a quoted reply context inside it
         const parentRow = el.closest('div[role="row"]') || el.closest('div[style*="flex"]') || el.parentElement;
         let bubbleQuote = '';
         if (parentRow) {
@@ -237,7 +689,6 @@
           }
         }
 
-        // Check if this incoming item is a Reel or shared post
         const reelLink = el.closest('a[href*="/reel/"]') || el.closest('a[href*="/p/"]');
         if (reelLink) {
           const href = reelLink.href || '';
@@ -255,14 +706,12 @@
           return bubbleQuote ? `${reelTag} ${bubbleQuote}` : reelTag;
         }
 
-        // Check if it's an image/photo
         if (el.tagName.toLowerCase() === 'img') {
           const alt = el.getAttribute('alt') || '';
           const photoTag = alt ? `[Sent a photo: ${alt}]` : '[Sent a photo]';
           return bubbleQuote ? `${photoTag} ${bubbleQuote}` : photoTag;
         }
 
-        // Otherwise regular text
         const text = el.innerText ? el.innerText.trim() : '';
         if (text && !text.includes('Seen') && !text.includes('Delivered') && text.length > 0) {
           const parentBubble = el.closest('div[role="row"]') || el.parentElement;
@@ -307,13 +756,11 @@
     const inputEl = getChatInputElement();
     if (!inputEl) {
       navigator.clipboard.writeText(text);
-      alert('Copied draft to clipboard! (Please click in the chat input and paste)');
       return;
     }
 
     inputEl.focus();
     try {
-      // Select existing content and replace using execCommand
       document.execCommand('selectAll', false, null);
       const inserted = document.execCommand('insertText', false, text);
       if (!inserted) {
@@ -326,33 +773,35 @@
     }
   }
 
-  // ── Floating UI Creation ────────────────────────────────────────────
+  // ── Floating UI Inside Shadow DOM ───────────────────────────────────
 
   function ensureFloatingPill() {
-    if (document.getElementById('talking-copilot-pill')) return;
+    const root = ensureShadowRoot();
+    if (root.getElementById('talking-copilot-pill')) return;
 
     const pill = document.createElement('div');
     pill.id = 'talking-copilot-pill';
     pill.innerHTML = `
-      <span class="tk-icon">✦</span>
-      <span>Draft</span>
-      <span class="tk-kbd">Alt+D</span>
+      <span class="tk-brand-wordmark">talking<span class="tk-block-caret"></span></span>
+      <span class="tk-pill-kbd">Alt+D</span>
     `;
 
     pill.addEventListener('click', () => {
       triggerDraftGeneration();
     });
 
-    document.body.appendChild(pill);
+    root.appendChild(pill);
   }
 
   function closeCopilotModal() {
-    const existing = document.getElementById('talking-copilot-modal');
+    const root = ensureShadowRoot();
+    const existing = root.getElementById('talking-copilot-modal');
     if (existing) existing.remove();
   }
 
   function openCopilotModal(contactName, incomingText, isLoading = true, draftData = null) {
     closeCopilotModal();
+    const root = ensureShadowRoot();
 
     const modal = document.createElement('div');
     modal.id = 'talking-copilot-modal';
@@ -363,8 +812,7 @@
     modal.innerHTML = `
       <div class="tk-header">
         <div class="tk-title-wrap">
-          <span class="tk-icon">✦</span>
-          <span class="tk-brand">Talking</span>
+          <span class="tk-brand">talking<span class="tk-block-caret"></span></span>
           <span class="tk-contact-tag">${escapeHtml(safeContact)}</span>
         </div>
         <button class="tk-close-btn" id="tk-close-modal">✕</button>
@@ -372,26 +820,19 @@
 
       <div class="tk-body">
         <div class="tk-incoming-snippet">
-          <strong>They said:</strong> ${escapeHtml(safeSnippet)}
+          ${escapeHtml(safeSnippet)}
         </div>
 
         ${
           isLoading
             ? `
           <div class="tk-loading-indicator">
-            <div class="tk-spinner"></div>
-            <span>Crafting personalized draft...</span>
+            <span>Proofing drafts on baseline grid...</span>
           </div>`
             : `
-          <div class="tk-variants-bar" id="tk-variants-bar">
-            <!-- Variant chips rendered dynamically -->
-          </div>
-
-          <div class="tk-bubbles-stack" id="tk-bubbles-stack" style="display: none;">
-            <!-- Split bubble bursts rendered dynamically -->
-          </div>
-
-          <textarea class="tk-draft-textarea" id="tk-draft-text" placeholder="Draft reply..."></textarea>
+          <div class="tk-variants-bar" id="tk-variants-bar"></div>
+          <div class="tk-bubbles-stack" id="tk-bubbles-stack" style="display: none;"></div>
+          <textarea class="tk-draft-textarea" id="tk-draft-text" placeholder="Proof draft reply..."></textarea>
           `
         }
       </div>
@@ -404,20 +845,20 @@
         <div class="tk-left-actions">
           <label class="tk-pro-toggle">
             <input type="checkbox" id="tk-pro-toggle-cb" ${isProMode ? 'checked' : ''} />
-            <span>Pro Mode</span>
+            <span>PRO</span>
           </label>
-          <button class="tk-btn tk-btn-secondary" id="tk-regen-btn" title="Regenerate">🔄</button>
+          <button class="tk-btn" id="tk-regen-btn" title="Regenerate">REGEN</button>
         </div>
         <div class="tk-right-actions">
-          <button class="tk-btn tk-btn-secondary" id="tk-copy-btn">Copy</button>
-          <button class="tk-btn tk-btn-primary" id="tk-insert-btn">Insert ↵</button>
+          <button class="tk-btn" id="tk-copy-btn">COPY</button>
+          <button class="tk-btn tk-btn-primary" id="tk-insert-btn">INSERT ↵</button>
         </div>
       </div>
       `
       }
     `;
 
-    document.body.appendChild(modal);
+    root.appendChild(modal);
 
     modal.querySelector('#tk-close-modal')?.addEventListener('click', closeCopilotModal);
 
@@ -453,7 +894,7 @@
         item.className = 'tk-bubble-item';
         item.title = 'Click to insert only this bubble';
         item.innerHTML = `
-          <span class="tk-bubble-num">${idx + 1}</span>
+          <span class="tk-bubble-num">0${idx + 1}</span>
           <span class="tk-bubble-text">${escapeHtml(bText)}</span>
           <span class="tk-bubble-insert-icon">↵</span>
         `;
@@ -476,17 +917,18 @@
       });
     }
 
-    // Render variant buttons
+    // Render variant tabs (A · CHILL, B · DIRECT, C · BANTER)
     if (variantsBar && activeVariants.length > 0) {
-      const icons = { chill: '🧊', direct: '🎯', banter: '🔥' };
+      const letters = ['A', 'B', 'C', 'D'];
       variantsBar.innerHTML = '';
-      activeVariants.forEach((v) => {
+      activeVariants.forEach((v, idx) => {
+        const letter = letters[idx] || String(idx + 1);
         const countBadge = v.bubbles && v.bubbles.length > 1
-          ? `<span class="tk-variant-count-badge">${v.bubbles.length}</span>`
+          ? `<span class="tk-variant-count-badge">[${v.bubbles.length}]</span>`
           : '';
         const btn = document.createElement('button');
         btn.className = `tk-variant-btn ${v.label === currentVariantLabel ? 'tk-active' : ''}`;
-        btn.innerHTML = `<span>${icons[v.label] || '⚡'}</span> ${v.label.charAt(0).toUpperCase() + v.label.slice(1)}${countBadge}`;
+        btn.innerHTML = `<span>${letter} · ${escapeHtml(v.label.toUpperCase())}</span> ${countBadge}`;
         btn.addEventListener('click', () => {
           variantsBar.querySelectorAll('.tk-variant-btn').forEach((b) => b.classList.remove('tk-active'));
           btn.classList.add('tk-active');
@@ -502,7 +944,6 @@
     const activeVar = activeVariants.find((v) => v.label === currentVariantLabel) || activeVariants[0];
     renderBubbles(data.bubbles || activeVar?.bubbles);
 
-    // Pro mode toggle
     proToggle?.addEventListener('change', (e) => {
       isProMode = e.target.checked;
       try {
@@ -510,26 +951,22 @@
       } catch {}
     });
 
-    // Regenerate
     regenBtn?.addEventListener('click', () => {
       triggerDraftGeneration();
     });
 
-    // Copy
     copyBtn?.addEventListener('click', () => {
       navigator.clipboard.writeText(draftTextarea.value);
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => (copyBtn.textContent = 'Copy'), 1500);
+      copyBtn.textContent = 'COPIED';
+      setTimeout(() => (copyBtn.textContent = 'COPY'), 1500);
     });
 
-    // Insert into chat
     const doInsert = () => {
       const finalMsg = draftTextarea.value.trim();
       if (!finalMsg) return;
 
       insertTextIntoChat(finalMsg);
 
-      // Report approval to backend
       if (activeContactId) {
         fetch(`${BACKEND_BASE}/api/approve`, {
           method: 'POST',
@@ -547,7 +984,6 @@
 
     insertBtn?.addEventListener('click', doInsert);
 
-    // Enter key submits draft inside textarea
     draftTextarea?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -588,13 +1024,11 @@
     } catch (err) {
       console.error('[Talking Copilot] Error:', err);
       openCopilotModal(contactName, incomingText, false, {
-        draft: `Could not connect to Talking at ${BACKEND_BASE}. Make sure the backend is running (python -m backend.main).`,
+        draft: `Could not connect to Talking at ${BACKEND_BASE}. Make sure the backend is running.`,
         variants: [],
       });
     }
   }
-
-  // ── Utility ─────────────────────────────────────────────────────────
 
   function escapeHtml(str) {
     if (!str) return '';
@@ -609,14 +1043,12 @@
   // ── Global Keyboard Shortcuts ───────────────────────────────────────
 
   window.addEventListener('keydown', (e) => {
-    // Alt+D triggers draft
     if (e.altKey && (e.key === 'd' || e.key === 'D')) {
       e.preventDefault();
       triggerDraftGeneration();
       return;
     }
 
-    // Escape closes modal
     if (e.key === 'Escape') {
       closeCopilotModal();
     }
@@ -627,7 +1059,6 @@
   function init() {
     ensureFloatingPill();
 
-    // Re-check floating pill on SPA route change with trailing debounce to prevent layout thrashing
     let pillDebounceTimer = null;
     const observer = new MutationObserver(() => {
       if (pillDebounceTimer) clearTimeout(pillDebounceTimer);
@@ -636,16 +1067,17 @@
       }, 250);
     });
     observer.observe(document.body, { childList: true, subtree: true });
-    console.log('[Talking Copilot] Active on', window.location.hostname);
   }
 
-  // Expose internal helpers on window for extension messaging and testing
+  // Expose on window for extension messaging and testing
   window._talkingCopilot = {
     getActiveContactName,
     getLastIncomingMessage,
     insertTextIntoChat,
     triggerDraftGeneration,
     closeCopilotModal,
+    openCopilotModal,
+    getShadowRoot: () => ensureShadowRoot(),
   };
 
   if (document.readyState === 'loading') {

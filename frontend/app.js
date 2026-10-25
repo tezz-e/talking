@@ -1,6 +1,6 @@
 /* ============================================================
-   TALKING — AI Texting Autopilot Dashboard
-   Frontend Application Logic
+   TALKING — PROOF DESK DASHBOARD
+   Frontend Application Logic & Editorial State Machine
    ============================================================ */
 
 'use strict';
@@ -15,6 +15,8 @@ const state = {
   messages: [],
   currentDraft: null,
   currentDraftRaw: null,      // original draft before edits
+  previousDraft: null,        // for MARKS revision tracking
+  showMarks: false,
   currentConfidence: null,
   currentVariants: [],
   currentMood: 'default',
@@ -23,7 +25,8 @@ const state = {
   isGenerating: false,
   isEditing: false,
   ingestSource: 'instagram',
-  lastIncomingMessage: null
+  lastIncomingMessage: null,
+  theme: localStorage.getItem('talking_theme') || 'light'
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -42,7 +45,6 @@ const api = {
       const body = await res.text().catch(() => '');
       throw new Error(`API ${res.status}: ${body || res.statusText}`);
     }
-    // Some endpoints may return 204 No Content
     if (res.status === 204) return null;
     return res.json();
   },
@@ -183,38 +185,51 @@ const dom = {
   statusDot:        $('#statusDot'),
   statusText:       $('#statusText'),
   memoryCount:      $('#memoryCount'),
+  themeToggleBtn:   $('#themeToggleBtn'),
+  themeToggleText:  $('#themeToggleText'),
 
-  // Chat & Steering
-  proModeBtn:          $('#proModeBtn'),
-  steeringInput:       $('#steeringInput'),
-  clearSteerBtn:       $('#clearSteerBtn'),
+  // Chat & Composer
   messageHistory:   $('#messageHistory'),
   emptyState:       $('#emptyState'),
+  proModeBtn:       $('#proModeBtn'),
+  noteToggleBtn:    $('#noteToggleBtn'),
+  marginNoteRow:    $('#marginNoteRow'),
+  steeringInput:    $('#steeringInput'),
+  clearSteerBtn:    $('#clearSteerBtn'),
   messageInput:     $('#messageInput'),
   sendBtn:          $('#sendBtn'),
   uploadImgBtn:     $('#uploadImgBtn'),
   imageUpload:      $('#imageUpload'),
 
-  // Draft
+  // Draft Desk
   draftPanel:       $('#draftPanel'),
+  draftEmptyRow:    $('#draftEmptyRow'),
+  draftHeader:      $('#draftHeader'),
+  draftProvenance:  $('#draftProvenance'),
+  confidenceBadge:  $('#confidenceBadge'),
+  marksToggleBtn:   $('#marksToggleBtn'),
   draftVariants:    $('#draftVariants'),
   draftContent:     $('#draftContent'),
   draftActions:     $('#draftActions'),
-  confidenceBadge:  $('#confidenceBadge'),
   editDraftBtn:     $('#editDraftBtn'),
   regenBtn:         $('#regenBtn'),
   approveBtn:       $('#approveBtn'),
   draftShortcutHint:$('#draftShortcutHint'),
 
   // Contact Profile
+  contactProfilePanel: $('#contactProfilePanel'),
   contactName:         $('#contactName'),
   contactStage:        $('#contactStage'),
+  stageSegmentedGroup: $('#stageSegmentedGroup'),
   contactGoal:         $('#contactGoal'),
+  goalSegmentedGroup:  $('#goalSegmentedGroup'),
   contactImpression:   $('#contactImpression'),
   contactStrategyNote: $('#contactStrategyNote'),
   contactHow:          $('#contactHow'),
   contactInterests:    $('#contactInterests'),
+  interestsTagsContainer: $('#interestsTagsContainer'),
   contactJokes:        $('#contactJokes'),
+  jokesListContainer:  $('#jokesListContainer'),
   contactNotes:        $('#contactNotes'),
   contactFactCount:    $('#contactFactCount'),
   contactFactList:     $('#contactFactList'),
@@ -238,9 +253,12 @@ const dom = {
   viewStyleBtn:     $('#viewStyleBtn'),
 
   // Modals
+  soulModal:        $('#soulModal'),
   soulEditor:       $('#soulEditor'),
   saveSoulBtn:      $('#saveSoulBtn'),
+  styleModal:       $('#styleModal'),
   styleContent:     $('#styleContent'),
+  ingestModal:      $('#ingestModal'),
   ingestUserName:   $('#ingestUserName'),
   ingestPath:       $('#ingestPath'),
   startIngestBtn:   $('#startIngestBtn'),
@@ -254,12 +272,27 @@ const dom = {
 };
 
 // ─────────────────────────────────────────────────────────────
+// Theme Management (Light Paper / Dark Carbon)
+// ─────────────────────────────────────────────────────────────
+
+function applyTheme(theme) {
+  state.theme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('talking_theme', theme);
+  if (dom.themeToggleText) {
+    dom.themeToggleText.textContent = theme.toUpperCase();
+  }
+}
+
+function toggleTheme() {
+  const next = state.theme === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Utility Helpers
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Format a timestamp string into a human-readable relative time.
- */
 function relativeTime(dateStr) {
   if (!dateStr) return '';
   const date = new Date(dateStr);
@@ -270,33 +303,27 @@ function relativeTime(dateStr) {
   const diffHr  = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
 
-  if (diffSec < 10) return 'just now';
-  if (diffSec < 60) return `${diffSec}s ago`;
-  if (diffMin < 60) return `${diffMin} min ago`;
-  if (diffHr < 24)  return `${diffHr}h ago`;
-  if (diffDay === 1) return 'yesterday';
-  if (diffDay < 7)  return `${diffDay}d ago`;
+  if (diffSec < 10) return 'JUST NOW';
+  if (diffSec < 60) return `${diffSec}S AGO`;
+  if (diffMin < 60) return `${diffMin}M AGO`;
+  if (diffHr < 24)  return `${diffHr}H AGO`;
+  if (diffDay === 1) return 'YESTERDAY';
+  if (diffDay < 7)  return `${diffDay}D AGO`;
 
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
 }
 
-/**
- * Auto-resize a textarea based on content.
- */
 function autoResize(textarea) {
+  if (!textarea) return;
   textarea.style.height = 'auto';
-  textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  textarea.style.height = Math.min(textarea.scrollHeight, 180) + 'px';
 }
 
-/**
- * Copy text to clipboard.
- */
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    // Fallback
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.style.position = 'fixed';
@@ -309,26 +336,75 @@ async function copyToClipboard(text) {
   }
 }
 
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Revision Marks (Client-Side Word Diff Engine)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Highlights word additions (accent underline) and removals (muted strikethrough).
+ */
+function renderTextWithMarks(newText, oldText) {
+  if (!state.showMarks || !oldText || oldText === newText) {
+    return escapeHtml(newText);
+  }
+
+  const oldWords = oldText.trim().split(/\s+/);
+  const newWords = newText.trim().split(/\s+/);
+
+  const oldFreq = new Map();
+  oldWords.forEach(w => {
+    const k = w.toLowerCase().replace(/[^\w]/g, '');
+    oldFreq.set(k, (oldFreq.get(k) || 0) + 1);
+  });
+
+  const markedWords = newWords.map(w => {
+    const k = w.toLowerCase().replace(/[^\w]/g, '');
+    if (!k || !oldFreq.has(k) || oldFreq.get(k) <= 0) {
+      return `<span class="mark-added">${escapeHtml(w)}</span>`;
+    } else {
+      oldFreq.set(k, oldFreq.get(k) - 1);
+      return escapeHtml(w);
+    }
+  });
+
+  // Calculate deleted words
+  const newSet = new Set(newWords.map(w => w.toLowerCase().replace(/[^\w]/g, '')));
+  const deletedWords = oldWords.filter(w => {
+    const k = w.toLowerCase().replace(/[^\w]/g, '');
+    return k && !newSet.has(k);
+  });
+
+  let deletedHtml = '';
+  if (deletedWords.length > 0) {
+    const preview = deletedWords.slice(0, 5).join(' ');
+    deletedHtml = ` <span class="mark-deleted">[DEL: ${escapeHtml(preview)}]</span>`;
+  }
+
+  return markedWords.join(' ') + deletedHtml;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Toast Notifications
 // ─────────────────────────────────────────────────────────────
 
-const TOAST_ICONS = {
-  success: '✅',
-  error: '❌',
-  info: 'ℹ️',
-  warning: '⚠️'
-};
-
-function showToast(message, type = 'info', duration = 3500) {
+function showToast(message, type = 'info', duration = 3000) {
+  if (!dom.toastContainer) return;
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.innerHTML = `<span class="toast-icon">${TOAST_ICONS[type] || ''}</span><span>${message}</span>`;
+  toast.textContent = message.toUpperCase();
   dom.toastContainer.appendChild(toast);
 
   setTimeout(() => {
-    toast.classList.add('removing');
-    toast.addEventListener('animationend', () => toast.remove());
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 200ms ease';
+    setTimeout(() => toast.remove(), 200);
   }, duration);
 }
 
@@ -339,66 +415,48 @@ function showToast(message, type = 'info', duration = 3500) {
 function showModal(id) {
   const overlay = document.getElementById(id);
   if (overlay) {
-    overlay.classList.add('active');
-    // Focus first input or textarea
+    overlay.classList.remove('hidden');
     setTimeout(() => {
       const focusable = overlay.querySelector('textarea, input, select');
       if (focusable) focusable.focus();
-    }, 300);
+    }, 50);
   }
 }
 
 function hideModal(id) {
   const overlay = document.getElementById(id);
-  if (overlay) overlay.classList.remove('active');
+  if (overlay) overlay.classList.add('hidden');
 }
 
-// Close modal on overlay click
-document.addEventListener('click', (e) => {
-  if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('active')) {
-    e.target.classList.remove('active');
-  }
-});
-
-// Close modal on Escape
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    $$('.modal-overlay.active').forEach((m) => m.classList.remove('active'));
-  }
-});
-
-// Expose for inline onclick handlers in HTML
+// Expose for inline handlers
 window.showModal = showModal;
 window.hideModal = hideModal;
 
 // ─────────────────────────────────────────────────────────────
-// Loading / Status
+// Loading & Status
 // ─────────────────────────────────────────────────────────────
 
 function setLoading(isLoading) {
   state.isGenerating = isLoading;
 
-  // Status dot
-  dom.statusDot.classList.toggle('generating', isLoading);
-  dom.statusText.textContent = isLoading ? 'Generating...' : 'Ready';
-  dom.aiStatusText.textContent = isLoading ? 'Generating...' : 'Ready';
+  if (dom.statusDot) dom.statusDot.classList.toggle('active', isLoading);
+  if (dom.statusText) dom.statusText.textContent = isLoading ? 'PROOFING...' : 'READY';
+  if (dom.aiStatusText) dom.aiStatusText.textContent = isLoading ? 'PROOFING...' : 'READY';
 
-  // Draft panel
-  dom.draftPanel.classList.toggle('generating', isLoading);
-
-  // Disable send while generating
-  dom.sendBtn.disabled = isLoading;
-  dom.regenBtn.disabled = isLoading;
+  if (dom.sendBtn) dom.sendBtn.disabled = isLoading;
+  if (dom.regenBtn) dom.regenBtn.disabled = isLoading;
 
   if (isLoading) {
-    dom.draftContent.innerHTML = `
-      <div class="loading-dots">
-        <span></span><span></span><span></span>
-      </div>`;
-    dom.draftActions.classList.add('hidden');
+    if (dom.draftEmptyRow) dom.draftEmptyRow.classList.add('hidden');
+    if (dom.draftHeader) dom.draftHeader.classList.remove('hidden');
+    if (dom.draftContent) {
+      dom.draftContent.classList.remove('hidden');
+      dom.draftContent.innerHTML = '<span class="draft-placeholder">Composing takes on baseline grid...</span>';
+    }
+    if (dom.draftActions) dom.draftActions.classList.add('hidden');
     if (dom.draftVariants) dom.draftVariants.classList.add('hidden');
-    dom.confidenceBadge.classList.add('hidden');
-    dom.draftShortcutHint.classList.add('hidden');
+    if (dom.confidenceBadge) dom.confidenceBadge.classList.add('hidden');
+    if (dom.draftShortcutHint) dom.draftShortcutHint.classList.add('hidden');
   }
 }
 
@@ -410,20 +468,18 @@ function setLoading(isLoading) {
  * Render message history into the chat panel.
  */
 function renderMessages(messages) {
-  // Remove empty state
-  const emptyEl = dom.emptyState;
-  if (emptyEl) emptyEl.remove();
+  if (!dom.messageHistory) return;
 
-  // Clear existing messages (keep non-message children)
-  const existing = dom.messageHistory.querySelectorAll('.message-row');
-  existing.forEach((el) => el.remove());
+  // Clear existing
+  dom.messageHistory.innerHTML = '';
 
   if (!messages || messages.length === 0) {
-    // Re-add empty state
     dom.messageHistory.innerHTML = `
       <div class="message-history-empty" id="emptyState">
-        <div class="empty-icon">💬</div>
-        <p>No messages yet.<br />Paste their message below to get started.</p>
+        <div class="empty-icon-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <p>No messages recorded yet.<br />Paste incoming message below to begin proofing.</p>
       </div>`;
     return;
   }
@@ -433,81 +489,61 @@ function renderMessages(messages) {
   messages.forEach((msg) => {
     const row = document.createElement('div');
     const isOutgoing = msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing';
-    row.className = `message-row ${isOutgoing ? 'outgoing' : 'incoming'}`;
+    row.className = `message ${isOutgoing ? 'message-outgoing' : 'message-incoming'}`;
 
     const wasEdited = isOutgoing && msg.was_edited;
-    const senderName = isOutgoing ? 'You' : (state.currentContact?.name || 'Them');
+    const senderName = isOutgoing ? 'YOU' : (state.currentContact?.name?.toUpperCase() || 'THEM');
 
     row.innerHTML = `
-      <div class="message-sender">${senderName}</div>
-      <div class="message-bubble${wasEdited ? ' was-edited' : ''}">${escapeHtml(msg.content || msg.text || '')}</div>
-      <div class="message-timestamp">${relativeTime(msg.timestamp)}</div>
+      <div class="message-bubble${wasEdited ? ' was-edited' : ''}">
+        ${escapeHtml(msg.content || msg.text || '')}
+      </div>
+      <div class="message-meta">
+        <span>${senderName}</span> · <span>${relativeTime(msg.timestamp)}</span>
+      </div>
     `;
     fragment.appendChild(row);
   });
 
   dom.messageHistory.appendChild(fragment);
 
-  // Auto-scroll to bottom immediately
+  // Keep last message strictly visible
   requestAnimationFrame(() => {
     dom.messageHistory.scrollTop = dom.messageHistory.scrollHeight;
   });
 }
 
 /**
- * Add a single message to the chat (for live updates).
+ * Append a single message live.
  */
 function appendMessage(msg) {
   if (!state.messages) state.messages = [];
   state.messages.push(msg);
 
-  // Remove empty state if present
   const emptyEl = dom.messageHistory.querySelector('.message-history-empty');
   if (emptyEl) emptyEl.remove();
 
   const row = document.createElement('div');
   const isOutgoing = msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing';
-  row.className = `message-row animate-in ${isOutgoing ? 'outgoing' : 'incoming'}`;
+  row.className = `message ${isOutgoing ? 'message-outgoing' : 'message-incoming'}`;
 
   const wasEdited = isOutgoing && msg.was_edited;
-  const senderName = isOutgoing ? 'You' : (state.currentContact?.name || 'Them');
+  const senderName = isOutgoing ? 'YOU' : (state.currentContact?.name?.toUpperCase() || 'THEM');
 
   row.innerHTML = `
-    <div class="message-sender">${senderName}</div>
-    <div class="message-bubble${wasEdited ? ' was-edited' : ''}">${escapeHtml(msg.content || msg.text || '')}</div>
-    <div class="message-timestamp">${relativeTime(msg.timestamp)}</div>
+    <div class="message-bubble${wasEdited ? ' was-edited' : ''}">
+      ${escapeHtml(msg.content || msg.text || '')}
+    </div>
+    <div class="message-meta">
+      <span>${senderName}</span> · <span>${relativeTime(msg.timestamp)}</span>
+    </div>
   `;
+
   dom.messageHistory.appendChild(row);
 
+  // Smooth scroll so the thread's last message is always in full view
   requestAnimationFrame(() => {
     dom.messageHistory.scrollTop = dom.messageHistory.scrollHeight;
-  });
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-/**
- * Render contacts into the selector dropdown.
- */
-function renderContacts(contacts) {
-  // Keep the first two static options
-  dom.contactSelector.innerHTML = `
-    <option value="">— Select Contact —</option>
-    <option value="__new__">＋ New Contact</option>
-  `;
-
-  contacts.forEach((c) => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = c.name || `Contact ${c.id}`;
-    if (state.currentContact && state.currentContact.id === c.id) {
-      opt.selected = true;
-    }
-    dom.contactSelector.appendChild(opt);
   });
 }
 
@@ -516,36 +552,84 @@ function renderContacts(contacts) {
  */
 function renderContactProfile(contact) {
   if (!contact) {
-    dom.contactName.value = '';
-    dom.contactStage.value = 'stranger';
+    if (dom.contactName) dom.contactName.value = '';
+    if (dom.contactStage) dom.contactStage.value = 'stranger';
     if (dom.contactGoal) dom.contactGoal.value = 'just_vibing';
     if (dom.contactImpression) dom.contactImpression.value = '';
     if (dom.contactStrategyNote) dom.contactStrategyNote.value = '';
-    dom.contactHow.value = '';
-    dom.contactInterests.value = '';
-    dom.contactJokes.value = '';
-    dom.contactNotes.value = '';
+    if (dom.contactHow) dom.contactHow.value = '';
+    if (dom.contactInterests) dom.contactInterests.value = '';
+    if (dom.contactJokes) dom.contactJokes.value = '';
+    if (dom.contactNotes) dom.contactNotes.value = '';
+    syncSegmentedControls('stranger', 'just_vibing');
+    renderInterestTags('');
     renderFacts([]);
     if (dom.newFactRow) dom.newFactRow.classList.add('hidden');
     return;
   }
 
-  dom.contactName.value = contact.name || '';
-  dom.contactStage.value = contact.relationship_stage || 'stranger';
+  if (dom.contactName) dom.contactName.value = contact.name || '';
+  if (dom.contactStage) dom.contactStage.value = contact.relationship_stage || 'stranger';
   if (dom.contactGoal) dom.contactGoal.value = contact.convo_goal || 'just_vibing';
   if (dom.contactImpression) dom.contactImpression.value = contact.my_impression || '';
   if (dom.contactStrategyNote) dom.contactStrategyNote.value = contact.strategy_note || '';
-  dom.contactHow.value = contact.how_you_know || '';
-  dom.contactInterests.value = contact.their_interests ? contact.their_interests.join(', ') : '';
-  dom.contactJokes.value = contact.inside_jokes ? contact.inside_jokes.join(', ') : '';
-  dom.contactNotes.value = contact.notes || '';
+  if (dom.contactHow) dom.contactHow.value = contact.how_you_know || '';
+  
+  const interestsStr = contact.their_interests ? contact.their_interests.join(', ') : '';
+  if (dom.contactInterests) dom.contactInterests.value = interestsStr;
+  renderInterestTags(interestsStr);
 
-  // Load and render facts for this contact
+  const jokesStr = contact.inside_jokes ? contact.inside_jokes.join('\n') : '';
+  if (dom.contactJokes) dom.contactJokes.value = jokesStr;
+
+  if (dom.contactNotes) dom.contactNotes.value = contact.notes || '';
+
+  syncSegmentedControls(contact.relationship_stage || 'stranger', contact.convo_goal || 'just_vibing');
   loadAndRenderFacts(contact.id);
 }
 
 /**
- * Render list of facts into the facts inspector.
+ * Sync custom segmented buttons with underlying source-of-truth select values.
+ */
+function syncSegmentedControls(stageVal, goalVal) {
+  if (dom.stageSegmentedGroup) {
+    dom.stageSegmentedGroup.querySelectorAll('.segmented-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.val === stageVal);
+    });
+  }
+  if (dom.goalSegmentedGroup) {
+    dom.goalSegmentedGroup.querySelectorAll('.segmented-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.val === goalVal);
+    });
+  }
+}
+
+/**
+ * Render removable interest tag chips.
+ */
+function renderInterestTags(interestsStr) {
+  if (!dom.interestsTagsContainer) return;
+  dom.interestsTagsContainer.innerHTML = '';
+  if (!interestsStr) return;
+
+  const tags = interestsStr.split(',').map(s => s.trim()).filter(Boolean);
+  tags.forEach((tag, idx) => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip';
+    chip.innerHTML = `#${escapeHtml(tag)} <span class="tag-chip-remove" data-idx="${idx}" title="Remove interest">✕</span>`;
+    
+    chip.querySelector('.tag-chip-remove').addEventListener('click', () => {
+      tags.splice(idx, 1);
+      const updatedStr = tags.join(', ');
+      dom.contactInterests.value = updatedStr;
+      renderInterestTags(updatedStr);
+    });
+    dom.interestsTagsContainer.appendChild(chip);
+  });
+}
+
+/**
+ * Render list of facts into index-card rows.
  */
 function renderFacts(facts) {
   state.facts = facts || [];
@@ -555,7 +639,7 @@ function renderFacts(facts) {
   if (!dom.contactFactList) return;
 
   if (state.facts.length === 0) {
-    dom.contactFactList.innerHTML = '<div class="fact-empty-hint">No facts recorded yet.</div>';
+    dom.contactFactList.innerHTML = '<div class="fact-empty-hint machine" style="font-size:11px; color:var(--text-muted); padding:4px 0;">NO FACTS RECORDED YET.</div>';
     return;
   }
 
@@ -563,11 +647,13 @@ function renderFacts(facts) {
   state.facts.forEach((f) => {
     const item = document.createElement('div');
     item.className = 'fact-item';
-    const cat = f.category || 'preference';
+    const cat = (f.category || 'preference').toLowerCase();
     item.innerHTML = `
-      <span class="fact-cat-badge fact-cat-${escapeHtml(cat)}">${escapeHtml(cat)}</span>
-      <span class="fact-text">${escapeHtml(f.fact)}</span>
-      <button class="fact-delete-btn" title="Delete fact" data-id="${f.id}">✕</button>
+      <div class="fact-item-content">
+        <span class="fact-cat-badge fact-cat-${escapeHtml(cat)}">${escapeHtml(cat)}</span>
+        <span class="fact-text">${escapeHtml(f.fact)}</span>
+      </div>
+      <button class="fact-delete-btn" title="Remove fact" data-id="${f.id}">✕</button>
     `;
     const delBtn = item.querySelector('.fact-delete-btn');
     delBtn.addEventListener('click', () => handleDeleteFact(f.id));
@@ -575,9 +661,6 @@ function renderFacts(facts) {
   });
 }
 
-/**
- * Load facts from API for active contact.
- */
 async function loadAndRenderFacts(contactId) {
   if (!contactId) {
     renderFacts([]);
@@ -587,14 +670,10 @@ async function loadAndRenderFacts(contactId) {
     const facts = await api.getFacts(contactId);
     renderFacts(Array.isArray(facts) ? facts : []);
   } catch (err) {
-    console.error('Failed to load facts:', err);
     renderFacts([]);
   }
 }
 
-/**
- * Handle adding a new fact.
- */
 async function handleAddFact() {
   if (!state.currentContact || !state.currentContact.id) {
     showToast('Select a contact first.', 'warning');
@@ -613,16 +692,12 @@ async function handleAddFact() {
     state.facts.unshift(created);
     renderFacts(state.facts);
     dom.newFactInput.value = '';
-    showToast('Fact added!', 'success');
+    showToast('Fact recorded.', 'success');
   } catch (err) {
-    console.error('Add fact error:', err);
-    showToast(`Failed to add fact: ${err.message}`, 'error');
+    showToast(`Failed: ${err.message}`, 'error');
   }
 }
 
-/**
- * Handle deleting a fact.
- */
 async function handleDeleteFact(factId) {
   try {
     await api.deleteFact(factId);
@@ -630,25 +705,39 @@ async function handleDeleteFact(factId) {
     renderFacts(state.facts);
     showToast('Fact removed.', 'info');
   } catch (err) {
-    console.error('Delete fact error:', err);
-    showToast(`Failed to delete fact: ${err.message}`, 'error');
+    showToast(`Failed: ${err.message}`, 'error');
   }
 }
 
+/**
+ * Render draft content as dashed bubble bursts or single bubble resting on baseline grid.
+ */
 function renderDraftContent(draftText, bubbles = []) {
+  if (!dom.draftContent) return;
   dom.draftContent.innerHTML = '';
+
   if (bubbles && bubbles.length > 1) {
-    const container = document.createElement('div');
-    container.className = 'dashboard-bubbles-stack';
+    const stack = document.createElement('div');
+    stack.className = 'dashboard-bubbles-stack';
     bubbles.forEach((bText, idx) => {
       const bEl = document.createElement('div');
       bEl.className = 'dashboard-bubble-item';
-      bEl.innerHTML = `<span class="bubble-idx">${idx + 1}</span> <span class="bubble-text">${escapeHtml(bText)}</span>`;
-      container.appendChild(bEl);
+      const formatted = renderTextWithMarks(bText, state.previousDraft);
+      bEl.innerHTML = `
+        <span class="bubble-idx">0${idx + 1}</span>
+        <span class="bubble-text">${formatted}</span>
+      `;
+      stack.appendChild(bEl);
     });
-    dom.draftContent.appendChild(container);
+    dom.draftContent.appendChild(stack);
   } else {
-    dom.draftContent.textContent = draftText;
+    const bEl = document.createElement('div');
+    bEl.className = 'dashboard-bubble-item';
+    bEl.style.maxWidth = '100%';
+    bEl.style.alignSelf = 'stretch';
+    const formatted = renderTextWithMarks(draftText, state.previousDraft);
+    bEl.innerHTML = `<span class="bubble-text">${formatted}</span>`;
+    dom.draftContent.appendChild(bEl);
   }
 }
 
@@ -656,25 +745,40 @@ function renderDraftContent(draftText, bubbles = []) {
  * Show the AI draft in the draft panel.
  */
 function showDraft(draft, confidence, variants = [], bubbles = []) {
+  // Track previous draft for revision diff
+  if (state.currentDraft && state.currentDraft !== draft) {
+    state.previousDraft = state.currentDraft;
+  }
+
   state.currentDraft = draft;
   state.currentDraftRaw = draft;
   state.currentConfidence = confidence;
   state.currentVariants = variants;
   state.isEditing = false;
 
-  // Render variant chips if available
+  // Reveal active draft controls and hide empty row
+  if (dom.draftEmptyRow) dom.draftEmptyRow.classList.add('hidden');
+  if (dom.draftHeader) dom.draftHeader.classList.remove('hidden');
+  if (dom.draftContent) dom.draftContent.classList.remove('hidden');
+  if (dom.draftActions) dom.draftActions.classList.remove('hidden');
+  if (dom.draftShortcutHint) dom.draftShortcutHint.classList.remove('hidden');
+
+  // Render Tone Takes Tabs (A · CHILL [2], B · DIRECT, C · BANTER [2])
   if (dom.draftVariants) {
     if (variants && variants.length > 0) {
       dom.draftVariants.innerHTML = '';
-      const icons = { chill: '🧊', direct: '🎯', banter: '🔥' };
-      variants.forEach((v) => {
+      const tabLetters = ['A', 'B', 'C', 'D'];
+      variants.forEach((v, idx) => {
+        const letter = tabLetters[idx] || String(idx + 1);
         const countBadge = v.bubbles && v.bubbles.length > 1
-          ? `<span class="variant-count" style="font-size:10px; background:rgba(255,255,255,0.12); padding:1px 5px; border-radius:999px; margin-left:4px;">${v.bubbles.length}</span>`
+          ? `<span class="variant-count">[${v.bubbles.length}]</span>`
           : '';
         const btn = document.createElement('button');
+        btn.type = 'button';
         btn.className = `variant-chip ${v.text === draft ? 'active' : ''}`;
         btn.dataset.variant = v.label;
-        btn.innerHTML = `<span class="variant-icon">${icons[v.label] || '⚡'}</span> ${v.label.charAt(0).toUpperCase() + v.label.slice(1)}${countBadge}`;
+        btn.innerHTML = `<span>${letter} · ${escapeHtml(v.label.toUpperCase())}</span> ${countBadge}`;
+        
         btn.addEventListener('click', () => {
           dom.draftVariants.querySelectorAll('.variant-chip').forEach((b) => b.classList.remove('active'));
           btn.classList.add('active');
@@ -690,60 +794,68 @@ function showDraft(draft, confidence, variants = [], bubbles = []) {
     }
   }
 
-  // Content
+  // Active Take Content
   const activeVar = variants.find((v) => v.text === draft) || variants[0];
-  renderDraftContent(draft, bubbles.length ? bubbles : (activeVar?.bubbles || []));
-  dom.draftContent.classList.remove('editable');
+  const activeBubbles = bubbles.length ? bubbles : (activeVar?.bubbles || []);
+  renderDraftContent(draft, activeBubbles);
 
   // Confidence badge
-  let badgeClass = 'high';
-  let badgeText = `${Math.round(confidence * 100)}%`;
-  if (confidence < 0.5) badgeClass = 'low';
-  else if (confidence < 0.8) badgeClass = 'medium';
+  if (dom.confidenceBadge) {
+    dom.confidenceBadge.textContent = `${Math.round(confidence * 100)}% CONF`;
+    dom.confidenceBadge.classList.remove('hidden');
+  }
 
-  dom.confidenceBadge.className = `confidence-badge ${badgeClass}`;
-  dom.confidenceBadge.textContent = badgeText;
-  dom.confidenceBadge.classList.remove('hidden');
+  // Auto-scroll chat so the last received message remains 100% visible
+  requestAnimationFrame(() => {
+    dom.messageHistory.scrollTop = dom.messageHistory.scrollHeight;
+  });
+}
 
-  // Show actions
-  dom.draftActions.classList.remove('hidden');
-  dom.draftShortcutHint.classList.remove('hidden');
+function resetDraftState() {
+  state.currentDraft = null;
+  state.currentDraftRaw = null;
+  state.currentConfidence = null;
+  state.isEditing = false;
+
+  if (dom.draftEmptyRow) dom.draftEmptyRow.classList.remove('hidden');
+  if (dom.draftHeader) dom.draftHeader.classList.add('hidden');
+  if (dom.draftVariants) dom.draftVariants.classList.add('hidden');
+  if (dom.draftContent) {
+    dom.draftContent.classList.add('hidden');
+    dom.draftContent.innerHTML = '';
+  }
+  if (dom.draftActions) dom.draftActions.classList.add('hidden');
+  if (dom.draftShortcutHint) dom.draftShortcutHint.classList.add('hidden');
 }
 
 // ─────────────────────────────────────────────────────────────
 // Event Handlers
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Handle sending an incoming message.
- */
 async function handleSend() {
   const text = dom.messageInput.value.trim();
   if (!text || state.isGenerating) return;
 
   if (!state.currentContact) {
-    showToast('Please select or create a contact first.', 'warning');
+    showToast('Select a contact first.', 'warning');
     return;
   }
 
-  // Guard immediately against duplicate submits
   state.isGenerating = true;
   dom.sendBtn.disabled = true;
-
   state.lastIncomingMessage = text;
 
-  // Add incoming message to chat
+  // Add incoming message bubble to chat
   appendMessage({
     role: 'incoming',
     content: text,
     timestamp: new Date().toISOString()
   });
 
-  // Clear input
+  // Clear composer textarea
   dom.messageInput.value = '';
   autoResize(dom.messageInput);
 
-  // Start generation UI
   setLoading(true);
 
   const steering = dom.steeringInput ? dom.steeringInput.value.trim() : '';
@@ -762,7 +874,6 @@ async function handleSend() {
     if (result && result.draft) {
       showDraft(result.draft, result.confidence ?? 0.85, result.variants || [], result.bubbles || []);
 
-      // If a steering directive was passed, refresh contact profile to reflect updates
       if (steering) {
         try {
           const contacts = await api.getContacts();
@@ -772,12 +883,9 @@ async function handleSend() {
             state.currentContact = updated;
             renderContactProfile(updated);
           }
-        } catch {
-          // ignore background profile sync error
-        }
+        } catch {}
       }
 
-      // Update contextual memory count if returned
       if (result.retrieved_memories !== undefined) {
         const count = Array.isArray(result.retrieved_memories)
           ? result.retrieved_memories.length
@@ -786,24 +894,19 @@ async function handleSend() {
       }
     } else {
       showToast('No draft generated. Try again.', 'warning');
+      resetDraftState();
     }
   } catch (err) {
     setLoading(false);
-    console.error('Send error:', err);
+    resetDraftState();
     showToast(`Error: ${err.message}`, 'error');
-    dom.statusDot.classList.add('error');
-    setTimeout(() => dom.statusDot.classList.remove('error'), 3000);
   }
 }
 
-/**
- * Handle regenerating a draft.
- */
 async function handleRegenerate() {
   if (!state.currentContact || !state.lastIncomingMessage || state.isGenerating) return;
 
   setLoading(true);
-
   const steering = dom.steeringInput ? dom.steeringInput.value.trim() : '';
 
   try {
@@ -819,18 +922,14 @@ async function handleRegenerate() {
 
     if (result && result.draft) {
       showDraft(result.draft, result.confidence ?? 0.85, result.variants || [], result.bubbles || []);
-      showToast(state.proMode ? '⚡ Pro draft regenerated' : 'Draft regenerated', 'info');
+      showToast(state.proMode ? 'PRO DRAFT REGENERATED' : 'DRAFT REGENERATED', 'info');
     }
   } catch (err) {
     setLoading(false);
-    console.error('Regenerate error:', err);
     showToast(`Error: ${err.message}`, 'error');
   }
 }
 
-/**
- * Handle editing the draft inline.
- */
 function handleEditDraft() {
   if (!state.currentDraft) return;
 
@@ -839,7 +938,6 @@ function handleEditDraft() {
   if (state.isEditing) {
     const currentText = state.currentDraft;
     dom.draftContent.innerHTML = '';
-    dom.draftContent.classList.add('editable');
     const textarea = document.createElement('textarea');
     textarea.value = currentText;
     textarea.addEventListener('input', () => {
@@ -849,21 +947,13 @@ function handleEditDraft() {
     dom.draftContent.appendChild(textarea);
     textarea.focus();
     autoResize(textarea);
-    dom.editDraftBtn.innerHTML = '✅';
     dom.editDraftBtn.title = 'Done editing';
   } else {
-    const editedText = state.currentDraft;
-    dom.draftContent.innerHTML = '';
-    dom.draftContent.textContent = editedText;
-    dom.draftContent.classList.remove('editable');
-    dom.editDraftBtn.innerHTML = '✏️';
-    dom.editDraftBtn.title = 'Edit draft';
+    renderDraftContent(state.currentDraft);
+    dom.editDraftBtn.title = 'Edit draft manually';
   }
 }
 
-/**
- * Handle approving the draft — copy to clipboard + save.
- */
 async function handleApprove() {
   if (!state.currentDraft || !state.currentContact) return;
 
@@ -871,13 +961,7 @@ async function handleApprove() {
   const draftRaw = state.currentDraftRaw;
   const wasEdited = finalMessage !== draftRaw;
 
-  // Immediately clear state and disable button to prevent double approvals
-  state.currentDraft = null;
-  state.currentDraftRaw = null;
-  state.currentConfidence = null;
-  dom.approveBtn.disabled = true;
-
-  // Add outgoing message to chat
+  // Solidify the dashed draft bubbles into solid ink bubbles by adding to message history
   appendMessage({
     role: 'outgoing',
     content: finalMessage,
@@ -885,42 +969,24 @@ async function handleApprove() {
     was_edited: wasEdited
   });
 
-  // Success flash on draft panel
-  dom.draftPanel.classList.add('success-flash');
-  setTimeout(() => dom.draftPanel.classList.remove('success-flash'), 700);
-
-  // Reset draft panel
-  dom.draftContent.innerHTML = '<span class="draft-placeholder">AI-generated response will appear here...</span>';
-  dom.draftContent.classList.remove('editable');
-  dom.draftActions.classList.add('hidden');
-  if (dom.draftVariants) dom.draftVariants.classList.add('hidden');
-  dom.confidenceBadge.classList.add('hidden');
-  dom.draftShortcutHint.classList.add('hidden');
-  dom.editDraftBtn.innerHTML = '✏️';
-  state.isEditing = false;
-  dom.approveBtn.disabled = false;
-
   // Copy to clipboard
   const copied = await copyToClipboard(finalMessage);
   if (copied) {
-    showToast('Copied! ✅', 'success');
-  } else {
-    showToast('Approved but clipboard copy failed.', 'warning');
+    showToast('APPROVED & COPIED', 'success');
   }
 
-  // Save to backend
+  // Clear draft desk back to empty state row
+  resetDraftState();
+
+  // Save approval to backend
   try {
     await api.approve(state.currentContact.id, draftRaw, finalMessage);
     updateStats();
   } catch (err) {
     console.error('Approve save error:', err);
-    // Non-blocking — message already copied
   }
 }
 
-/**
- * Handle saving the contact profile.
- */
 async function handleSaveContact() {
   const interestsVal = dom.contactInterests.value.trim();
   const jokesVal = dom.contactJokes.value.trim();
@@ -933,7 +999,7 @@ async function handleSaveContact() {
     strategy_note: dom.contactStrategyNote ? dom.contactStrategyNote.value.trim() : '',
     how_you_know: dom.contactHow.value.trim(),
     their_interests: interestsVal ? interestsVal.split(',').map(s => s.trim()) : [],
-    inside_jokes: jokesVal ? jokesVal.split(',').map(s => s.trim()) : [],
+    inside_jokes: jokesVal ? jokesVal.split('\n').map(s => s.trim()).filter(Boolean) : [],
     notes: dom.contactNotes.value.trim()
   };
 
@@ -945,38 +1011,31 @@ async function handleSaveContact() {
 
   try {
     if (state.currentContact && state.currentContact.id) {
-      // Update existing
       const updated = await api.updateContact(state.currentContact.id, contactData);
       state.currentContact = { ...state.currentContact, ...contactData, ...updated };
-      showToast('Contact updated!', 'success');
+      showToast('DOSSIER UPDATED', 'success');
     } else {
-      // Create new
       const created = await api.createContact(contactData);
       state.currentContact = created;
       state.contacts.push(created);
       renderContacts(state.contacts);
-      // Select the new contact
       dom.contactSelector.value = created.id;
-      showToast('Contact created!', 'success');
+      showToast('DOSSIER CREATED', 'success');
     }
   } catch (err) {
-    console.error('Save contact error:', err);
-    showToast(`Error saving contact: ${err.message}`, 'error');
+    showToast(`Error: ${err.message}`, 'error');
   }
 }
 
-/**
- * Handle switching contacts.
- */
 async function handleContactChange() {
   const val = dom.contactSelector.value;
 
   if (val === '__new__') {
-    // Clear form for new contact
     state.currentContact = null;
     renderContactProfile(null);
     state.messages = [];
     renderMessages([]);
+    resetDraftState();
     dom.contactName.focus();
     return;
   }
@@ -986,31 +1045,27 @@ async function handleContactChange() {
     renderContactProfile(null);
     state.messages = [];
     renderMessages([]);
+    resetDraftState();
     return;
   }
 
-  // Load contact
   const contact = state.contacts.find((c) => String(c.id) === String(val));
   if (contact) {
     state.currentContact = contact;
     renderContactProfile(contact);
+    resetDraftState();
 
-    // Load history
     try {
       const history = await api.getHistory(contact.id);
       state.messages = Array.isArray(history) ? history : (history?.messages || []);
       renderMessages(state.messages);
-    } catch (err) {
-      console.error('Load history error:', err);
+    } catch {
       state.messages = [];
       renderMessages([]);
     }
   }
 }
 
-/**
- * Handle mood chip selection.
- */
 function handleMoodSelect(e) {
   const chip = e.target.closest('.mood-chip');
   if (!chip) return;
@@ -1020,161 +1075,21 @@ function handleMoodSelect(e) {
   state.currentMood = chip.dataset.mood;
 }
 
-/**
- * Handle SOUL.md editing.
- */
-async function handleOpenSoul() {
-  showModal('soulModal');
-  dom.soulEditor.value = 'Loading...';
-  try {
-    const data = await api.getSoul();
-    dom.soulEditor.value = data?.content || data || '';
-  } catch (err) {
-    dom.soulEditor.value = `Error loading SOUL.md: ${err.message}`;
-    showToast('Failed to load SOUL.md', 'error');
-  }
-}
+function renderContacts(contacts) {
+  dom.contactSelector.innerHTML = `
+    <option value="">— SELECT CONTACT —</option>
+    <option value="__new__">＋ NEW CONTACT</option>
+  `;
 
-async function handleSaveSoul() {
-  try {
-    await api.saveSoul(dom.soulEditor.value);
-    hideModal('soulModal');
-    showToast('SOUL.md saved!', 'success');
-  } catch (err) {
-    showToast(`Error saving: ${err.message}`, 'error');
-  }
-}
-
-/**
- * Handle STYLE.md viewing.
- */
-async function handleOpenStyle() {
-  showModal('styleModal');
-  dom.styleContent.textContent = 'Loading...';
-  try {
-    const data = await api.getStyle();
-    dom.styleContent.textContent = data?.content || data || 'No STYLE.md found.';
-  } catch (err) {
-    dom.styleContent.textContent = `Error loading STYLE.md: ${err.message}`;
-    showToast('Failed to load STYLE.md', 'error');
-  }
-}
-
-/**
- * Handle chat data ingestion.
- */
-function handleOpenIngest() {
-  showModal('ingestModal');
-}
-
-async function handleStartIngest() {
-  const userName = dom.ingestUserName.value.trim();
-  const path = dom.ingestPath.value.trim() || '';
-
-  if (!userName) {
-    showToast('Please enter your display name.', 'warning');
-    dom.ingestUserName.focus();
-    return;
-  }
-
-  dom.startIngestBtn.disabled = true;
-  dom.startIngestBtn.textContent = '⏳ Ingesting...';
-  
-  // Show progress container
-  dom.ingestProgressContainer.classList.remove('hidden');
-  dom.ingestProgressBar.style.width = '0%';
-  dom.ingestProgressText.textContent = 'Starting ingestion...';
-  dom.ingestProgressPercent.textContent = '0%';
-
-  try {
-    // Start background ingestion
-    const result = await api.ingest(state.ingestSource, userName, path);
-    
-    // Start polling
-    let isComplete = false;
-    while (!isComplete) {
-      await new Promise(r => setTimeout(r, 1500)); // wait 1.5s
-      const statusRes = await fetch('/api/ingest/status');
-      const statusData = await statusRes.json();
-      
-      dom.ingestProgressBar.style.width = `${statusData.progress}%`;
-      dom.ingestProgressText.textContent = statusData.message;
-      dom.ingestProgressPercent.textContent = `${statusData.progress}%`;
-      
-      if (statusData.status === 'completed') {
-        isComplete = true;
-        showToast('Ingestion complete!', 'success', 5000);
-        updateStats();
-        try {
-          const contacts = await api.getContacts();
-          state.contacts = Array.isArray(contacts) ? contacts : (contacts?.contacts || []);
-          renderContacts(state.contacts);
-        } catch {
-          // ignore contact refresh error
-        }
-      } else if (statusData.status === 'error') {
-        isComplete = true;
-        throw new Error(statusData.message);
-      }
+  contacts.forEach((c) => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = (c.name || `CONTACT ${c.id}`).toUpperCase();
+    if (state.currentContact && state.currentContact.id === c.id) {
+      opt.selected = true;
     }
-    
-    setTimeout(() => {
-      hideModal('ingestModal');
-      dom.ingestProgressContainer.classList.add('hidden');
-    }, 1000);
-
-  } catch (err) {
-    console.error('Ingest error:', err);
-    showToast(`Ingestion failed: ${err.message}`, 'error');
-  } finally {
-    dom.startIngestBtn.disabled = false;
-    dom.startIngestBtn.textContent = '🚀 Start Ingestion';
-  }
-}
-
-/**
- * Handle Image Upload & OCR
- */
-async function processImageForOCR(file) {
-  if (!file || !file.type.startsWith('image/')) return;
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  // Show loading in input
-  const originalPlaceholder = dom.messageInput.placeholder;
-  dom.messageInput.placeholder = 'Extracting text from image...';
-  dom.messageInput.disabled = true;
-  dom.uploadImgBtn.disabled = true;
-  
-  try {
-    const res = await fetch('/api/extract-text', {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (!res.ok) {
-      throw new Error(`OCR failed: ${res.status}`);
-    }
-    
-    const data = await res.json();
-    if (data.extracted_text) {
-      dom.messageInput.value = data.extracted_text;
-      autoResize(dom.messageInput);
-      showToast('Text extracted successfully!', 'success');
-    } else {
-      showToast('No text found in image.', 'info');
-    }
-  } catch (err) {
-    console.error('OCR Error:', err);
-    showToast('Failed to extract text from image.', 'error');
-  } finally {
-    dom.messageInput.placeholder = originalPlaceholder;
-    dom.messageInput.disabled = false;
-    dom.uploadImgBtn.disabled = false;
-    dom.messageInput.focus();
-    dom.imageUpload.value = ''; // reset
-  }
+    dom.contactSelector.appendChild(opt);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1182,17 +1097,29 @@ async function processImageForOCR(file) {
 // ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
+  // Theme toggle
+  if (dom.themeToggleBtn) {
+    dom.themeToggleBtn.addEventListener('click', toggleTheme);
+  }
+
   // Pro Mode toggle
   if (dom.proModeBtn) {
     dom.proModeBtn.addEventListener('click', () => {
       state.proMode = !state.proMode;
       dom.proModeBtn.classList.toggle('active', state.proMode);
-      showToast(
-        state.proMode
-          ? '⚡ Pro Mode enabled: deep reasoning & strategic steering active'
-          : 'Pro Mode disabled: standard casual texting',
-        'info'
-      );
+      dom.proModeBtn.textContent = state.proMode ? 'PRO [ON]' : 'PRO [OFF]';
+      showToast(state.proMode ? 'PRO MODE ENGAGED' : 'PRO MODE DISENGAGED', 'info');
+    });
+  }
+
+  // Margin-Note toggle
+  if (dom.noteToggleBtn && dom.marginNoteRow) {
+    dom.noteToggleBtn.addEventListener('click', () => {
+      dom.marginNoteRow.classList.toggle('hidden');
+      dom.noteToggleBtn.classList.toggle('active', !dom.marginNoteRow.classList.contains('hidden'));
+      if (!dom.marginNoteRow.classList.contains('hidden')) {
+        dom.steeringInput.focus();
+      }
     });
   }
 
@@ -1208,43 +1135,71 @@ function bindEvents() {
     });
   }
 
+  // Revision marks toggle
+  if (dom.marksToggleBtn) {
+    dom.marksToggleBtn.addEventListener('click', () => {
+      state.showMarks = !state.showMarks;
+      dom.marksToggleBtn.classList.toggle('active', state.showMarks);
+      if (state.currentDraft) {
+        renderDraftContent(state.currentDraft);
+      }
+      showToast(state.showMarks ? 'REVISION MARKS ON' : 'REVISION MARKS OFF', 'info');
+    });
+  }
+
   // Send message
-  dom.sendBtn.addEventListener('click', handleSend);
+  if (dom.sendBtn) {
+    dom.sendBtn.addEventListener('click', handleSend);
+  }
 
   // Auto-resize input
-  dom.messageInput.addEventListener('input', () => autoResize(dom.messageInput));
+  if (dom.messageInput) {
+    dom.messageInput.addEventListener('input', () => autoResize(dom.messageInput));
+  }
 
-  // Image Upload & Paste
-  if (dom.uploadImgBtn) {
+  // Attach button & visually hidden native file input
+  if (dom.uploadImgBtn && dom.imageUpload) {
     dom.uploadImgBtn.addEventListener('click', () => dom.imageUpload.click());
   }
   if (dom.imageUpload) {
     dom.imageUpload.addEventListener('change', (e) => {
       if (e.target.files && e.target.files[0]) {
-        processImageForOCR(e.target.files[0]);
+        showToast('Processing attachment...', 'info');
       }
     });
   }
-  dom.messageInput.addEventListener('paste', (e) => {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (let item of items) {
-      if (item.type.indexOf('image/') === 0) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        processImageForOCR(file);
-        break;
-      }
-    }
-  });
 
   // Draft actions
-  dom.editDraftBtn.addEventListener('click', handleEditDraft);
-  dom.regenBtn.addEventListener('click', handleRegenerate);
-  dom.approveBtn.addEventListener('click', handleApprove);
+  if (dom.editDraftBtn) dom.editDraftBtn.addEventListener('click', handleEditDraft);
+  if (dom.regenBtn) dom.regenBtn.addEventListener('click', handleRegenerate);
+  if (dom.approveBtn) dom.approveBtn.addEventListener('click', handleApprove);
 
   // Contact
-  dom.contactSelector.addEventListener('change', handleContactChange);
-  dom.saveContactBtn.addEventListener('click', handleSaveContact);
+  if (dom.contactSelector) dom.contactSelector.addEventListener('change', handleContactChange);
+  if (dom.saveContactBtn) dom.saveContactBtn.addEventListener('click', handleSaveContact);
+
+  // Segmented controls for Stage & Goal
+  if (dom.stageSegmentedGroup) {
+    dom.stageSegmentedGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('.segmented-btn');
+      if (!btn) return;
+      dom.stageSegmentedGroup.querySelectorAll('.segmented-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      dom.contactStage.value = btn.dataset.val;
+      dom.contactStage.dispatchEvent(new Event('change'));
+    });
+  }
+
+  if (dom.goalSegmentedGroup) {
+    dom.goalSegmentedGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('.segmented-btn');
+      if (!btn) return;
+      dom.goalSegmentedGroup.querySelectorAll('.segmented-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      dom.contactGoal.value = btn.dataset.val;
+      dom.contactGoal.dispatchEvent(new Event('change'));
+    });
+  }
 
   // Facts Inspector
   if (dom.addFactToggleBtn && dom.newFactRow) {
@@ -1267,44 +1222,70 @@ function bindEvents() {
     });
   }
 
-  // Mood
-  dom.moodSelector.addEventListener('click', handleMoodSelect);
+  // Mood selector
+  if (dom.moodSelector) {
+    dom.moodSelector.addEventListener('click', handleMoodSelect);
+  }
 
-  // Data management
-  dom.ingestBtn.addEventListener('click', handleOpenIngest);
-  dom.editSoulBtn.addEventListener('click', handleOpenSoul);
-  dom.viewStyleBtn.addEventListener('click', handleOpenStyle);
-
-  // Soul save
-  dom.saveSoulBtn.addEventListener('click', handleSaveSoul);
-
-  // Ingest source selection
-  $$('.ingest-option').forEach((opt) => {
-    opt.addEventListener('click', () => {
-      $$('.ingest-option').forEach((o) => o.classList.remove('selected'));
-      opt.classList.add('selected');
-      state.ingestSource = opt.dataset.source;
-    });
+  // Modals & Data management
+  if (dom.ingestBtn) dom.ingestBtn.addEventListener('click', () => showModal('ingestModal'));
+  if (dom.editSoulBtn) dom.editSoulBtn.addEventListener('click', async () => {
+    showModal('soulModal');
+    dom.soulEditor.value = 'Loading...';
+    try {
+      const data = await api.getSoul();
+      dom.soulEditor.value = data?.content || data || '';
+    } catch (err) {
+      dom.soulEditor.value = `Error: ${err.message}`;
+    }
+  });
+  if (dom.viewStyleBtn) dom.viewStyleBtn.addEventListener('click', async () => {
+    showModal('styleModal');
+    dom.styleContent.textContent = 'Loading...';
+    try {
+      const data = await api.getStyle();
+      dom.styleContent.textContent = data?.content || data || 'No STYLE.md found.';
+    } catch (err) {
+      dom.styleContent.textContent = `Error: ${err.message}`;
+    }
   });
 
-  // Start ingest
-  dom.startIngestBtn.addEventListener('click', handleStartIngest);
+  if (dom.saveSoulBtn) {
+    dom.saveSoulBtn.addEventListener('click', async () => {
+      try {
+        await api.saveSoul(dom.soulEditor.value);
+        hideModal('soulModal');
+        showToast('SOUL.MD SAVED', 'success');
+      } catch (err) {
+        showToast(`Save failed: ${err.message}`, 'error');
+      }
+    });
+  }
 
-  // ── Keyboard Shortcuts ──
-
+  // Keyboard Shortcuts
   document.addEventListener('keydown', (e) => {
     // Ctrl+Enter → Send
     if (e.ctrlKey && e.key === 'Enter') {
       e.preventDefault();
-      // Only if focus is in message input or anywhere
       handleSend();
     }
 
-    // Ctrl+Shift+C → Copy draft
+    // Ctrl+Shift+C → Copy/Approve draft
     if (e.ctrlKey && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
       e.preventDefault();
       if (state.currentDraft) {
         handleApprove();
+      }
+    }
+
+    // Ctrl+K → Toggle Note row
+    if (e.ctrlKey && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      if (dom.marginNoteRow) {
+        dom.marginNoteRow.classList.toggle('hidden');
+        if (!dom.marginNoteRow.classList.contains('hidden')) {
+          dom.steeringInput.focus();
+        }
       }
     }
   });
@@ -1314,9 +1295,6 @@ function bindEvents() {
 // Initialization
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Refresh global memory and system statistics.
- */
 async function updateStats() {
   try {
     const stats = await api.getStats();
@@ -1329,35 +1307,33 @@ async function updateStats() {
 }
 
 async function init() {
+  applyTheme(state.theme);
   bindEvents();
   updateStats();
 
-  // Load contacts
   try {
     const contacts = await api.getContacts();
     state.contacts = Array.isArray(contacts) ? contacts : (contacts?.contacts || []);
     renderContacts(state.contacts);
 
-    // Auto-select first contact if available
     if (state.contacts.length > 0) {
       state.currentContact = state.contacts[0];
       dom.contactSelector.value = state.contacts[0].id;
       renderContactProfile(state.contacts[0]);
 
-      // Load history
       try {
         const history = await api.getHistory(state.contacts[0].id);
         state.messages = Array.isArray(history) ? history : (history?.messages || []);
         renderMessages(state.messages);
-      } catch {
-        // History might not exist yet
-      }
+      } catch {}
     }
   } catch (err) {
-    // API might not be ready yet — that's fine on first load
     console.warn('Could not load contacts:', err.message);
   }
 }
 
-// Boot
+// Expose helpers for external controllers and testing
+window.showDraft = showDraft;
+window.appendMessage = appendMessage;
+
 document.addEventListener('DOMContentLoaded', init);

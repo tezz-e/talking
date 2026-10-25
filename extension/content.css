@@ -1,354 +1,397 @@
 /* ============================================================
-   TALKING COPILOT — In-Page Overlay Stylesheet
-   Ethereal Dithered Glass & Soft Motion Blur UI
-   for WhatsApp Web & Instagram Direct
+   TALKING COPILOT — PROOF DESK IN-PAGE OVERLAY STYLES
+   Isolated Shadow DOM Stylesheet for WhatsApp Web & Instagram
    ============================================================ */
 
-:root {
-  --tk-bg: rgba(17, 19, 26, 0.94);
-  --tk-glass: rgba(255, 255, 255, 0.05);
-  --tk-glass-hover: rgba(255, 255, 255, 0.09);
-  --tk-border: rgba(255, 255, 255, 0.1);
-  --tk-border-rim: rgba(255, 255, 255, 0.18);
-  --tk-accent: #c4b5fd;
-  --tk-accent-light: #ddd6fe;
-  --tk-sage: #86efac;
-  --tk-blush: #fda4af;
-  --tk-text: #f1f3f9;
-  --tk-text-muted: #9ba1b5;
-  --tk-font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --tk-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+:host, :root {
+  /* Light Mode (Paper substrate - default) */
+  --tk-paper: #F2EFE8;
+  --tk-bg: #F7F5F0;
+  --tk-surface: #E8E4DC;
+  --tk-surface-elevated: #EDE9E1;
+  --tk-ink: #16140F;
+  --tk-text: #16140F;
+  --tk-text-muted: rgba(22, 20, 15, 0.62);
+  --tk-text-faint: rgba(22, 20, 15, 0.38);
+  --tk-hairline: rgba(22, 20, 15, 0.18);
+  --tk-hairline-subtle: rgba(22, 20, 15, 0.10);
+  --tk-hairline-strong: rgba(22, 20, 15, 0.32);
+  --tk-grid: rgba(22, 20, 15, 0.06);
+  --tk-accent: #FF4F1F;
+
+  --tk-font-voice: "Newsreader", "Source Serif 4", Georgia, "Times New Roman", serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --tk-font-machine: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-/* Floating Launch Pill */
+:host([data-theme="dark"]), [data-theme="dark"] {
+  --tk-paper: #0F0E0B;
+  --tk-bg: #13120D;
+  --tk-surface: #17150F;
+  --tk-surface-elevated: #1D1B13;
+  --tk-ink: #ECE7DA;
+  --tk-text: #ECE7DA;
+  --tk-text-muted: rgba(236, 231, 218, 0.62);
+  --tk-text-faint: rgba(236, 231, 218, 0.38);
+  --tk-hairline: rgba(236, 231, 218, 0.18);
+  --tk-hairline-subtle: rgba(236, 231, 218, 0.10);
+  --tk-hairline-strong: rgba(236, 231, 218, 0.32);
+  --tk-grid: rgba(236, 231, 218, 0.06);
+  --tk-accent: #FF4F1F;
+}
+
+/* Zero shadows and blur */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Floating Launch Pill: 2px radius rectangle with mono TALK Alt+D and block caret */
 #talking-copilot-pill {
   position: fixed;
-  bottom: 84px;
+  bottom: 80px;
   right: 28px;
-  z-index: 999999;
+  z-index: 2147483647;
   display: flex;
   align-items: center;
   gap: 8px;
   background: var(--tk-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--tk-border);
-  border-top: 1px solid var(--tk-border-rim);
-  box-shadow: var(--tk-shadow);
+  border: 1px solid var(--tk-hairline-strong);
+  border-radius: 2px;
   color: var(--tk-text);
-  font-family: var(--tk-font);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 9px 16px;
-  border-radius: 999px;
+  font-family: var(--tk-font-machine);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 7px 12px;
   cursor: pointer;
   user-select: none;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  min-height: 32px;
+  line-height: 1;
 }
 
 #talking-copilot-pill:hover {
-  transform: translateY(-2px);
+  background: var(--tk-surface);
   border-color: var(--tk-accent);
-  box-shadow: 0 16px 44px rgba(196, 181, 253, 0.25);
 }
 
-#talking-copilot-pill .tk-icon {
-  font-size: 13px;
-  color: var(--tk-accent);
+.tk-brand-wordmark {
+  font-family: var(--tk-font-voice);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tk-text);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  text-transform: lowercase;
 }
 
-#talking-copilot-pill .tk-kbd {
+.tk-block-caret {
+  display: inline-block;
+  width: 6px;
+  height: 13px;
+  background-color: var(--tk-accent);
+  animation: tk-caret-blink 1s steps(1) infinite;
+}
+
+@keyframes tk-caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tk-block-caret {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+.tk-pill-kbd {
+  font-family: var(--tk-font-machine);
   font-size: 10px;
-  font-family: 'JetBrains Mono', monospace;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 2px 6px;
-  border-radius: 6px;
   color: var(--tk-text-muted);
+  border-left: 1px solid var(--tk-hairline);
+  padding-left: 8px;
 }
 
-/* Floating Modal */
+/* Floating Modal: Editorial Proof Desk */
 #talking-copilot-modal {
   position: fixed;
   bottom: 120px;
   right: 28px;
-  width: 400px;
+  width: 440px;
   max-width: calc(100vw - 40px);
   background: var(--tk-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--tk-border);
-  border-top: 1px solid var(--tk-border-rim);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--tk-border-rim);
-  border-radius: 24px;
-  z-index: 1000000;
-  font-family: var(--tk-font);
+  border: 1px solid var(--tk-hairline-strong);
+  border-radius: 2px;
+  z-index: 2147483647;
   color: var(--tk-text);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: tkFadeSlide 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
 }
 
-@keyframes tkFadeSlide {
-  from {
-    opacity: 0;
-    transform: translateY(16px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+/* Registration marks on modal corners */
+#talking-copilot-modal::before {
+  content: "⌜";
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-family: var(--tk-font-machine);
+  font-size: 10px;
+  color: var(--tk-hairline-strong);
+  line-height: 1;
+  pointer-events: none;
 }
 
-/* Header */
+#talking-copilot-modal::after {
+  content: "⌟";
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-family: var(--tk-font-machine);
+  font-size: 10px;
+  color: var(--tk-hairline-strong);
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Modal Header */
 .tk-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
+  padding: 8px 14px;
+  background: var(--tk-surface);
+  border-bottom: 1px solid var(--tk-hairline);
 }
 
 .tk-title-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .tk-brand {
-  font-weight: 700;
-  font-size: 14px;
-  color: #fff;
-  letter-spacing: -0.01em;
+  font-family: var(--tk-font-voice);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--tk-text);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
+  text-transform: lowercase;
 }
 
 .tk-contact-tag {
-  font-size: 11px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(196, 181, 253, 0.16);
-  color: var(--tk-accent);
-  font-weight: 600;
-  max-width: 150px;
+  font-family: var(--tk-font-machine);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid var(--tk-hairline);
+  border-radius: 2px;
+  color: var(--tk-text-muted);
+  max-width: 160px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border: 1px solid rgba(196, 181, 253, 0.25);
 }
 
 .tk-close-btn {
   background: transparent;
   border: none;
   color: var(--tk-text-muted);
-  font-size: 15px;
+  font-family: var(--tk-font-machine);
+  font-size: 13px;
   cursor: pointer;
-  padding: 4px 6px;
+  padding: 2px 4px;
   line-height: 1;
-  border-radius: 6px;
-  transition: color 0.15s;
+  min-height: auto;
 }
 
 .tk-close-btn:hover {
-  color: #fff;
+  color: var(--tk-accent);
 }
 
-/* Body */
+/* Modal Body */
 .tk-body {
-  padding: 16px 18px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  background-color: var(--tk-bg);
+  /* 24px baseline grid */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 23px,
+    var(--tk-grid) 23px,
+    var(--tk-grid) 24px
+  );
+  background-size: 100% 24px;
+  background-position: top left;
 }
 
-/* Incoming snippet */
 .tk-incoming-snippet {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  padding: 10px 14px;
-  font-size: 12px;
+  font-family: var(--tk-font-voice);
+  font-size: 13px;
+  line-height: 20px;
   color: var(--tk-text-muted);
-  max-height: 60px;
-  overflow-y: auto;
-  line-height: 1.45;
+  border-left: 2px solid var(--tk-accent);
+  padding: 2px 8px;
+  background: var(--tk-surface);
+  border-radius: 2px;
 }
 
-.tk-incoming-snippet strong {
-  color: #f1f3f9;
+.tk-loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 0;
+  font-family: var(--tk-font-machine);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tk-text-muted);
+  justify-content: center;
 }
 
-/* Energy Variants Bar */
+/* Takes / Tabs (A · CHILL [2], B · DIRECT, C · BANTER [2]) */
 .tk-variants-bar {
   display: flex;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 4px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--tk-hairline-subtle);
+  padding-bottom: 4px;
 }
 
 .tk-variant-btn {
-  flex: 1;
+  font-family: var(--tk-font-machine);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 4px 8px;
   color: var(--tk-text-muted);
-  padding: 6px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: 999px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 4px;
-  transition: all 0.16s ease;
-}
-
-.tk-variant-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--tk-text);
+  border-radius: 0;
+  min-height: 26px;
 }
 
 .tk-variant-btn.tk-active {
-  background: rgba(196, 181, 253, 0.18);
-  border-color: rgba(196, 181, 253, 0.35);
-  color: #fff;
-  box-shadow: 0 2px 12px rgba(196, 181, 253, 0.18);
+  color: var(--tk-text);
+  font-weight: 600;
+  border-bottom: 2px solid var(--tk-accent);
 }
 
 .tk-variant-count-badge {
+  font-family: var(--tk-font-machine);
   font-size: 9px;
-  padding: 1px 5px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  color: #fff;
-  margin-left: 2px;
-  font-family: 'JetBrains Mono', monospace;
+  border: 1px solid var(--tk-hairline);
+  padding: 0 3px;
+  border-radius: 2px;
+  color: var(--tk-text-muted);
 }
 
-/* Multi-Bubble Texting Bursts (Floating speech bubble cards) */
+.tk-variant-btn.tk-active .tk-variant-count-badge {
+  border-color: var(--tk-accent);
+  color: var(--tk-accent);
+}
+
+/* Multi-Bubble Bursts */
 .tk-bubbles-stack {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 2px;
+  gap: 6px;
 }
 
 .tk-bubble-item {
-  position: relative;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 16px 16px 16px 5px;
-  padding: 8px 12px;
-  font-size: 12.5px;
-  color: #f1f3f9;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  align-self: flex-end;
+  max-width: 85%;
+  border: 1px dashed var(--tk-accent);
+  background: var(--tk-paper);
+  color: var(--tk-text);
+  border-radius: 14px 14px 2px 14px;
+  padding: 6px 12px;
+  font-family: var(--tk-font-voice);
+  font-size: 14px;
+  line-height: 22px;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .tk-bubble-item:hover {
-  background: rgba(196, 181, 253, 0.14);
-  border-color: rgba(196, 181, 253, 0.35);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(196, 181, 253, 0.15);
+  border-color: var(--tk-ink);
 }
 
 .tk-bubble-num {
+  font-family: var(--tk-font-machine);
   font-size: 10px;
-  font-weight: 700;
   color: var(--tk-accent);
-  background: rgba(196, 181, 253, 0.14);
-  padding: 1px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
-  font-family: 'JetBrains Mono', monospace;
+  user-select: none;
 }
 
 .tk-bubble-text {
-  flex: 1;
-  word-break: break-word;
+  font-family: var(--tk-font-voice);
+  font-size: 14px;
+  line-height: 22px;
 }
 
 .tk-bubble-insert-icon {
+  font-family: var(--tk-font-machine);
   font-size: 11px;
-  opacity: 0.5;
-  transition: opacity 0.15s;
+  color: var(--tk-text-muted);
+  margin-left: auto;
 }
 
-.tk-bubble-item:hover .tk-bubble-insert-icon {
-  opacity: 1;
-  color: var(--tk-accent);
-}
-
-/* Draft Text Box */
+/* Editable Take Area */
 .tk-draft-textarea {
   width: 100%;
-  background: rgba(11, 12, 17, 0.75);
-  border: 1px solid var(--tk-border);
-  border-top: 1px solid var(--tk-border-rim);
-  border-radius: 14px;
-  color: #fff;
-  font-family: var(--tk-font);
-  font-size: 13px;
-  line-height: 1.5;
-  padding: 12px 14px;
-  resize: vertical;
   min-height: 72px;
-  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid var(--tk-hairline);
+  border-radius: 2px;
+  padding: 8px 10px;
+  font-family: var(--tk-font-voice);
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--tk-text);
+  resize: vertical;
   outline: none;
-  transition: border-color 0.18s, box-shadow 0.18s;
 }
 
 .tk-draft-textarea:focus {
   border-color: var(--tk-accent);
-  box-shadow: 0 0 18px rgba(196, 181, 253, 0.2);
 }
 
-/* Status / Loading */
-.tk-loading-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  gap: 10px;
-  color: var(--tk-text-muted);
-  font-size: 13px;
-}
-
-.tk-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  border-top-color: var(--tk-accent);
-  border-radius: 50%;
-  animation: tkSpin 0.7s linear infinite;
-}
-
-@keyframes tkSpin {
-  to { transform: rotate(360deg); }
-}
-
-/* Footer / Actions */
+/* Modal Footer */
 .tk-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 18px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  gap: 8px;
+  padding: 8px 14px;
+  background: var(--tk-surface);
+  border-top: 1px solid var(--tk-hairline);
 }
 
 .tk-left-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tk-right-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -358,56 +401,46 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 11.5px;
+  font-family: var(--tk-font-machine);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--tk-text-muted);
   cursor: pointer;
   user-select: none;
 }
 
 .tk-pro-toggle input {
-  accent-color: var(--tk-blush);
-  cursor: pointer;
-}
-
-.tk-right-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  accent-color: var(--tk-accent);
 }
 
 .tk-btn {
-  font-family: var(--tk-font);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 8px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-  border: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.tk-btn-secondary {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--tk-text-muted);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-}
-
-.tk-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.09);
+  font-family: var(--tk-font-machine);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: 2px;
+  border: 1px solid var(--tk-hairline);
+  background: var(--tk-bg);
   color: var(--tk-text);
+  cursor: pointer;
+  min-height: 30px;
 }
 
+.tk-btn:hover {
+  background: var(--tk-surface-elevated);
+  border-color: var(--tk-hairline-strong);
+}
+
+/* Primary Insert Button: Solid Ink */
 .tk-btn-primary {
-  background: linear-gradient(135deg, #86efac, #6ee7b7);
-  color: #0b0c11;
-  font-weight: 700;
-  box-shadow: 0 4px 18px rgba(134, 239, 172, 0.28);
+  background: var(--tk-ink) !important;
+  color: var(--tk-paper) !important;
+  border: 1px solid var(--tk-ink) !important;
+  font-weight: 600;
 }
 
 .tk-btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(134, 239, 172, 0.38);
+  opacity: 0.92;
 }

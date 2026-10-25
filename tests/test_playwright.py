@@ -556,6 +556,142 @@ class TestPlaywrightE2E(unittest.TestCase):
         input_text = self.page.locator("#chatInput").text_content().strip()
         self.assertEqual(input_text, "i thought that was closed mondays haha")
 
+    # ── Test 12: Native File Input Hidden & Attach Button Triggers ─────
+    def test_native_file_input_hidden_and_attach_works(self):
+        """Verifies native file input is visually hidden and attach button triggers file upload."""
+        self.page.goto(BASE_URL)
+        self.page.wait_for_selector(".app-container")
+
+        # Native file input is in DOM but visually hidden
+        file_input = self.page.locator("#imageUpload")
+        self.assertEqual(file_input.count(), 1)
+        opacity = self.page.evaluate("() => window.getComputedStyle(document.getElementById('imageUpload')).opacity")
+        self.assertEqual(opacity, "0")
+
+        # Attach button is visible
+        attach_btn = self.page.locator("#uploadImgBtn")
+        self.assertTrue(attach_btn.is_visible())
+
+        # Clicking attach button triggers the file input click handler
+        triggered = self.page.evaluate("""
+        () => {
+            let clicked = false;
+            const input = document.getElementById('imageUpload');
+            input.addEventListener('click', (e) => {
+                e.preventDefault();
+                clicked = true;
+            });
+            document.getElementById('uploadImgBtn').click();
+            return clicked;
+        }
+        """)
+        self.assertTrue(triggered)
+
+    # ── Test 13: Draft Desk Never Overlays Last Message ────────────────
+    def test_draft_desk_bounding_box_does_not_overlap_last_message(self):
+        """Verifies that the draft desk sits docked below the thread and never overlaps messages."""
+        self.page.goto(BASE_URL)
+        self.page.wait_for_selector("#contactSelector")
+        self.page.select_option("#contactSelector", self.test_contact.id)
+        self.page.wait_for_timeout(300)
+
+        # Inject chat messages into history and trigger a draft
+        self.page.evaluate("""
+        () => {
+            for (let i = 1; i <= 6; i++) {
+                window.appendMessage({
+                    role: i % 2 === 0 ? 'outgoing' : 'incoming',
+                    content: `Test message ${i} verifying thread clearance without overlapping`,
+                    timestamp: new Date().toISOString()
+                });
+            }
+            window.showDraft(
+                "Sounds like a plan! Let's sync up Friday afternoon.",
+                0.92,
+                [
+                    { label: "chill", text: "yeah sounds good", bubbles: ["yeah sounds good"] },
+                    { label: "direct", text: "Sounds like a plan! Let's sync up Friday afternoon.", bubbles: ["Sounds like a plan! Let's sync up Friday afternoon."] }
+                ]
+            );
+        }
+        """)
+
+        self.page.wait_for_selector(".message")
+        last_msg = self.page.locator(".message").last
+        draft_desk = self.page.locator("#draftPanel")
+
+        self.assertTrue(last_msg.is_visible())
+        self.assertTrue(draft_desk.is_visible())
+
+        msg_box = last_msg.bounding_box()
+        draft_box = draft_desk.bounding_box()
+
+        self.assertIsNotNone(msg_box)
+        self.assertIsNotNone(draft_box)
+        self.assertLessEqual(msg_box["y"] + msg_box["height"], draft_box["y"] + 2)
+
+    # ── Test 14: Empty Draft State Height is Approx 40px ───────────────
+    def test_empty_draft_state_height_is_approx_40px(self):
+        """Verifies that the empty draft state is an exact ~40px row."""
+        self.page.goto(BASE_URL)
+        self.page.wait_for_selector(".app-container")
+
+        empty_row = self.page.locator("#draftEmptyRow")
+        self.assertTrue(empty_row.is_visible())
+        self.assertIn("NO DRAFT", empty_row.text_content())
+
+        box = empty_row.bounding_box()
+        self.assertIsNotNone(box)
+        self.assertGreaterEqual(box["height"], 35.0)
+        self.assertLessEqual(box["height"], 50.0)
+
+    # ── Test 15: Tone Tabs Render Distinct Content ─────────────────────
+    def test_tone_tabs_render_distinct_content(self):
+        """Verifies that tone tabs (A · CHILL, B · DIRECT, C · BANTER) render distinct content."""
+        self.page.goto(BASE_URL)
+        self.page.wait_for_selector(".app-container")
+
+        # Show draft with 3 distinct takes
+        self.page.evaluate("""
+        () => {
+            window.showDraft(
+                "Yeah for sure sounds fun",
+                0.88,
+                [
+                    { label: "chill", text: "yeah sounds fun", bubbles: ["yeah sounds fun"] },
+                    { label: "direct", text: "I would love to join, let me know the time!", bubbles: ["I would love to join, let me know the time!"] },
+                    { label: "banter", text: "Only if you promise not to play terrible music again 😂", bubbles: ["Only if you promise not to play terrible music again 😂"] }
+                ]
+            );
+        }
+        """)
+
+        self.page.wait_for_selector(".variant-chip")
+        tabs = self.page.locator(".variant-chip")
+        self.assertEqual(tabs.count(), 3)
+
+        chill_tab = self.page.locator('.variant-chip[data-variant="chill"]')
+        direct_tab = self.page.locator('.variant-chip[data-variant="direct"]')
+        banter_tab = self.page.locator('.variant-chip[data-variant="banter"]')
+
+        # Click Chill
+        chill_tab.click()
+        draft_content_text_1 = self.page.locator("#draftContent").text_content().strip()
+        self.assertIn("yeah sounds fun", draft_content_text_1)
+
+        # Click Direct
+        direct_tab.click()
+        draft_content_text_2 = self.page.locator("#draftContent").text_content().strip()
+        self.assertIn("I would love to join", draft_content_text_2)
+        self.assertNotEqual(draft_content_text_1, draft_content_text_2)
+
+        # Click Banter
+        banter_tab.click()
+        draft_content_text_3 = self.page.locator("#draftContent").text_content().strip()
+        self.assertIn("terrible music", draft_content_text_3)
+        self.assertNotEqual(draft_content_text_2, draft_content_text_3)
+
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -155,10 +155,11 @@ class GeminiLLM:
 
         prompt = (
             f"{user_message}\n\n"
-            "Generate 3 distinct reply options following STYLE.md and the conversation context:\n"
-            "1. 'chill': Low-effort, super relaxed, casual, short (1 to 6 words).\n"
-            "2. 'direct': Natural, balanced, clear, moving the conversation forward.\n"
+            "Generate 3 distinctly calibrated reply options following STYLE.md and the conversation context:\n"
+            "1. 'chill': Low-effort, super relaxed, casual, strictly short (1 to 6 words maximum, never identical to direct).\n"
+            "2. 'direct': Natural, balanced, clear, moving the conversation forward (1 to 2 clear sentences).\n"
             "3. 'banter': Playful, witty, light teasing, or inside-joke / callback energy.\n\n"
+            "CRITICAL: Every option MUST be noticeably different from each other in tone, length, and vocabulary. Do NOT return identical text across options.\n\n"
             "MULTI-BUBBLE BURSTS:\n"
             "If a reply naturally flows as 2 or 3 quick message bursts (e.g. ['wait really', 'i thought that was closed monday'] "
             "or ['nah that's wild', 'where did you find that 💀']), return it as a list of strings. "
