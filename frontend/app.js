@@ -39,10 +39,11 @@ const state = {
 const api = {
   /** Helper: make a fetch request and return parsed JSON. */
   async _fetch(url, options = {}) {
-    const defaultHeaders = { 'Content-Type': 'application/json' };
+    const isFormData = options.body instanceof FormData;
+    const defaultHeaders = isFormData ? {} : { 'Content-Type': 'application/json' };
     const res = await fetch(url, {
       ...options,
-      headers: { ...defaultHeaders, ...options.headers }
+      headers: { ...defaultHeaders, ...(options.headers || {}) }
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
@@ -172,6 +173,16 @@ const api = {
   // ── Stats ──
   getStats() {
     return this._fetch('/api/stats');
+  },
+
+  // ── Image OCR / Extraction ──
+  extractText(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this._fetch('/api/extract-text', {
+      method: 'POST',
+      body: formData
+    });
   },
 
   // ── Watcher ──
@@ -331,7 +342,12 @@ function toggleTheme() {
 
 function relativeTime(dateStr) {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
+  let s = String(dateStr).trim();
+  if (s && !s.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(s)) {
+    s = s.replace(' ', 'T') + 'Z';
+  }
+  const date = new Date(s);
+  if (isNaN(date.getTime())) return '';
   const now = new Date();
   const diffMs = now - date;
   const diffSec = Math.floor(diffMs / 1000);
@@ -391,39 +407,48 @@ function renderTextWithMarks(newText, oldText) {
     return escapeHtml(newText);
   }
 
-  const oldWords = oldText.trim().split(/\s+/);
-  const newWords = newText.trim().split(/\s+/);
+  const oldWords = oldText.trim().split(/\s+/).filter(Boolean);
+  const newWords = newText.trim().split(/\s+/).filter(Boolean);
 
-  const oldFreq = new Map();
-  oldWords.forEach(w => {
-    const k = w.toLowerCase().replace(/[^\w]/g, '');
-    oldFreq.set(k, (oldFreq.get(k) || 0) + 1);
-  });
+  const m = oldWords.length;
+  const n = newWords.length;
 
-  const markedWords = newWords.map(w => {
-    const k = w.toLowerCase().replace(/[^\w]/g, '');
-    if (!k || !oldFreq.has(k) || oldFreq.get(k) <= 0) {
-      return `<span class="mark-added">${escapeHtml(w)}</span>`;
-    } else {
-      oldFreq.set(k, oldFreq.get(k) - 1);
-      return escapeHtml(w);
+  // LCS dynamic programming table
+  const dp = Array.from({ length: m + 1 }, () => new Int32Array(n + 1));
+  const norm = (w) => w.toLowerCase().replace(/[^\w]/g, '');
+
+  for (let i = 1; i <= m; i++) {
+    const w1 = norm(oldWords[i - 1]);
+    for (let j = 1; j <= n; j++) {
+      if (w1 && w1 === norm(newWords[j - 1])) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
     }
-  });
-
-  // Calculate deleted words
-  const newSet = new Set(newWords.map(w => w.toLowerCase().replace(/[^\w]/g, '')));
-  const deletedWords = oldWords.filter(w => {
-    const k = w.toLowerCase().replace(/[^\w]/g, '');
-    return k && !newSet.has(k);
-  });
-
-  let deletedHtml = '';
-  if (deletedWords.length > 0) {
-    const preview = deletedWords.slice(0, 5).join(' ');
-    deletedHtml = ` <span class="mark-deleted">[DEL: ${escapeHtml(preview)}]</span>`;
   }
 
-  return markedWords.join(' ') + deletedHtml;
+  // Backtrack to preserve word order with deletions and additions in place
+  let i = m;
+  let j = n;
+  const tokens = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && norm(oldWords[i - 1]) && norm(oldWords[i - 1]) === norm(newWords[j - 1])) {
+      tokens.push(escapeHtml(newWords[j - 1]));
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      tokens.push(`<span class="mark-added">${escapeHtml(newWords[j - 1])}</span>`);
+      j--;
+    } else if (i > 0) {
+      tokens.push(`<span class="mark-deleted">${escapeHtml(oldWords[i - 1])}</span>`);
+      i--;
+    }
+  }
+
+  tokens.reverse();
+  return tokens.join(' ');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -581,6 +606,7 @@ function appendMessage(msg) {
   requestAnimationFrame(() => {
     dom.messageHistory.scrollTop = dom.messageHistory.scrollHeight;
   });
+  return row;
 }
 
 /**
@@ -739,13 +765,14 @@ async function handleAddFact() {
 }
 
 async function handleDeleteFact(factId) {
+  state.facts = state.facts.filter((f) => f.id !== factId);
+  renderFacts(state.facts);
   try {
     await api.deleteFact(factId);
-    state.facts = state.facts.filter((f) => f.id !== factId);
-    renderFacts(state.facts);
     showToast('Fact removed.', 'info');
   } catch (err) {
     showToast(`Failed: ${err.message}`, 'error');
+    if (state.currentContact) loadAndRenderFacts(state.currentContact.id);
   }
 }
 
@@ -826,6 +853,8 @@ function showDraft(draft, confidence, variants = [], bubbles = []) {
           updateVariantSlider(btn);
           state.currentDraft = v.text;
           state.currentDraftRaw = v.text;
+          state.isEditing = false;
+          if (dom.editDraftBtn) dom.editDraftBtn.title = 'Edit draft manually';
           renderDraftContent(v.text, v.bubbles);
         });
         dom.draftVariants.appendChild(btn);
@@ -883,9 +912,17 @@ function initSpotlightEffects() {
   });
 }
 
+function updateNoteButtonIndicator() {
+  if (!dom.noteToggleBtn || !dom.steeringInput) return;
+  const hasText = Boolean(dom.steeringInput.value.trim());
+  const isCollapsed = dom.marginNoteRow ? dom.marginNoteRow.classList.contains('hidden') : true;
+  dom.noteToggleBtn.classList.toggle('has-note', hasText && isCollapsed);
+}
+
 function resetDraftState() {
   state.currentDraft = null;
   state.currentDraftRaw = null;
+  state.previousDraft = null;
   state.currentConfidence = null;
   state.isEditing = false;
 
@@ -913,16 +950,21 @@ async function handleSend() {
     return;
   }
 
+  const targetContactId = state.currentContact.id;
   state.isGenerating = true;
   dom.sendBtn.disabled = true;
   state.lastIncomingMessage = text;
 
-  // Add incoming message bubble to chat
-  appendMessage({
+  // New incoming message: reset previous draft diff baseline
+  state.previousDraft = null;
+
+  // Add incoming message bubble optimistically to chat
+  const msgObj = {
     role: 'incoming',
     content: text,
     timestamp: new Date().toISOString()
-  });
+  };
+  const msgRow = appendMessage(msgObj);
 
   // Clear composer textarea
   dom.messageInput.value = '';
@@ -934,17 +976,23 @@ async function handleSend() {
 
   try {
     const result = await api.sendMessage(
-      state.currentContact.id,
+      targetContactId,
       text,
       state.currentMood,
       state.proMode,
       steering
     );
 
+    // Discard if the contact was changed while the request was in flight
+    if (!state.currentContact || String(state.currentContact.id) !== String(targetContactId)) {
+      return;
+    }
+
     setLoading(false);
 
     if (result && result.draft) {
       showDraft(result.draft, result.confidence ?? 0.85, result.variants || [], result.bubbles || []);
+      updateNoteButtonIndicator();
 
       if (steering) {
         try {
@@ -965,40 +1013,102 @@ async function handleSend() {
         dom.aiMemoryCount.textContent = count;
       }
     } else {
+      // Revert optimistic bubble and restore text
+      if (!dom.messageInput.value) {
+        dom.messageInput.value = text;
+        autoResize(dom.messageInput);
+      }
+      if (msgRow && msgRow.parentNode) msgRow.remove();
+      if (state.messages) {
+        const idx = state.messages.indexOf(msgObj);
+        if (idx !== -1) state.messages.splice(idx, 1);
+        if (state.messages.length === 0) renderMessages([]);
+      }
       showToast('No draft generated. Try again.', 'warning');
       resetDraftState();
     }
   } catch (err) {
-    setLoading(false);
-    resetDraftState();
-    showToast(`Error: ${err.message}`, 'error');
+    if (state.currentContact && String(state.currentContact.id) === String(targetContactId)) {
+      setLoading(false);
+      resetDraftState();
+      // Revert optimistic bubble and restore text
+      if (!dom.messageInput.value) {
+        dom.messageInput.value = text;
+        autoResize(dom.messageInput);
+      }
+      if (msgRow && msgRow.parentNode) msgRow.remove();
+      if (state.messages) {
+        const idx = state.messages.indexOf(msgObj);
+        if (idx !== -1) state.messages.splice(idx, 1);
+        if (state.messages.length === 0) renderMessages([]);
+      }
+      showToast(`Error: ${err.message}`, 'error');
+    }
+  } finally {
+    state.isGenerating = false;
+    dom.sendBtn.disabled = false;
   }
 }
 
 async function handleRegenerate() {
   if (!state.currentContact || !state.lastIncomingMessage || state.isGenerating) return;
 
+  const targetContactId = state.currentContact.id;
+  // Snapshot previous draft state in case regenerate fails or returns empty
+  const prevDraft = state.currentDraft;
+  const prevConfidence = state.currentConfidence;
+  const prevVariants = state.currentVariants;
+  const prevRaw = state.currentDraftRaw;
+  const prevMarksDiff = state.previousDraft;
+
   setLoading(true);
   const steering = dom.steeringInput ? dom.steeringInput.value.trim() : '';
 
   try {
     const result = await api.regenerate(
-      state.currentContact.id,
+      targetContactId,
       state.lastIncomingMessage,
       state.currentMood,
       state.proMode,
       steering
     );
 
+    // Discard if the contact was changed while regenerating
+    if (!state.currentContact || String(state.currentContact.id) !== String(targetContactId)) {
+      return;
+    }
+
     setLoading(false);
 
     if (result && result.draft) {
       showDraft(result.draft, result.confidence ?? 0.85, result.variants || [], result.bubbles || []);
       showToast(state.proMode ? 'PRO DRAFT REGENERATED' : 'DRAFT REGENERATED', 'info');
+    } else {
+      if (prevDraft) {
+        state.previousDraft = prevMarksDiff;
+        state.currentDraftRaw = prevRaw;
+        showDraft(prevDraft, prevConfidence ?? 0.85, prevVariants || []);
+        showToast('Regenerate returned empty. Restored previous draft.', 'warning');
+      } else {
+        resetDraftState();
+      }
     }
   } catch (err) {
-    setLoading(false);
-    showToast(`Error: ${err.message}`, 'error');
+    if (state.currentContact && String(state.currentContact.id) === String(targetContactId)) {
+      setLoading(false);
+      if (prevDraft) {
+        state.previousDraft = prevMarksDiff;
+        state.currentDraftRaw = prevRaw;
+        showDraft(prevDraft, prevConfidence ?? 0.85, prevVariants || []);
+      } else {
+        resetDraftState();
+      }
+      showToast(`Error: ${err.message}`, 'error');
+    }
+  } finally {
+    state.isGenerating = false;
+    if (dom.regenBtn) dom.regenBtn.disabled = false;
+    if (dom.sendBtn) dom.sendBtn.disabled = false;
   }
 }
 
@@ -1021,17 +1131,34 @@ function handleEditDraft() {
     autoResize(textarea);
     dom.editDraftBtn.title = 'Done editing';
   } else {
-    renderDraftContent(state.currentDraft);
+    const trimmed = (state.currentDraft || '').trim();
+    const doubleSplit = trimmed.split(/\n\n+/).filter(Boolean);
+    const singleSplit = trimmed.split(/\n+/).filter(Boolean);
+    const bubbles = doubleSplit.length > 1 ? doubleSplit : (singleSplit.length > 1 ? singleSplit : []);
+    renderDraftContent(state.currentDraft, bubbles);
     dom.editDraftBtn.title = 'Edit draft manually';
   }
 }
 
 async function handleApprove() {
   if (!state.currentDraft || !state.currentContact) return;
+  // Never approve a draft that isn't visible on screen
+  if (!dom.draftContent || dom.draftContent.classList.contains('hidden') || dom.draftContent.querySelector('.draft-placeholder')) {
+    return;
+  }
 
   const finalMessage = state.currentDraft;
   const draftRaw = state.currentDraftRaw;
   const wasEdited = finalMessage !== draftRaw;
+
+  // Copy to clipboard first; only proceed if copy succeeded
+  const copied = await copyToClipboard(finalMessage);
+  if (!copied) {
+    showToast('Failed to copy to clipboard. Draft kept.', 'error');
+    return;
+  }
+
+  showToast('APPROVED & COPIED', 'success');
 
   // Solidify the dashed draft bubbles into solid ink bubbles by adding to message history
   appendMessage({
@@ -1040,12 +1167,6 @@ async function handleApprove() {
     timestamp: new Date().toISOString(),
     was_edited: wasEdited
   });
-
-  // Copy to clipboard
-  const copied = await copyToClipboard(finalMessage);
-  if (copied) {
-    showToast('APPROVED & COPIED', 'success');
-  }
 
   // Clear draft desk back to empty state row
   resetDraftState();
@@ -1056,6 +1177,7 @@ async function handleApprove() {
     updateStats();
   } catch (err) {
     console.error('Approve save error:', err);
+    showToast('Edit was not saved for learning.', 'warning');
   }
 }
 
@@ -1099,7 +1221,10 @@ async function handleSaveContact() {
   }
 }
 
+let currentHistoryRequestId = 0;
+
 async function handleContactChange() {
+  const reqId = ++currentHistoryRequestId;
   const val = dom.contactSelector.value;
 
   if (val === '__new__') {
@@ -1129,9 +1254,15 @@ async function handleContactChange() {
 
     try {
       const history = await api.getHistory(contact.id);
+      if (reqId !== currentHistoryRequestId || !state.currentContact || String(state.currentContact.id) !== String(contact.id)) {
+        return;
+      }
       state.messages = Array.isArray(history) ? history : (history?.messages || []);
       renderMessages(state.messages);
     } catch {
+      if (reqId !== currentHistoryRequestId || !state.currentContact || String(state.currentContact.id) !== String(contact.id)) {
+        return;
+      }
       state.messages = [];
       renderMessages([]);
     }
@@ -1397,6 +1528,7 @@ function bindEvents() {
     dom.noteToggleBtn.addEventListener('click', () => {
       dom.marginNoteRow.classList.toggle('hidden');
       dom.noteToggleBtn.classList.toggle('active', !dom.marginNoteRow.classList.contains('hidden'));
+      updateNoteButtonIndicator();
       if (!dom.marginNoteRow.classList.contains('hidden')) {
         dom.steeringInput.focus();
       }
@@ -1407,10 +1539,12 @@ function bindEvents() {
   if (dom.steeringInput && dom.clearSteerBtn) {
     dom.steeringInput.addEventListener('input', () => {
       dom.clearSteerBtn.classList.toggle('hidden', !dom.steeringInput.value.trim());
+      updateNoteButtonIndicator();
     });
     dom.clearSteerBtn.addEventListener('click', () => {
       dom.steeringInput.value = '';
       dom.clearSteerBtn.classList.add('hidden');
+      updateNoteButtonIndicator();
       dom.steeringInput.focus();
     });
   }
@@ -1442,9 +1576,30 @@ function bindEvents() {
     dom.uploadImgBtn.addEventListener('click', () => dom.imageUpload.click());
   }
   if (dom.imageUpload) {
-    dom.imageUpload.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files[0]) {
-        showToast('Processing attachment...', 'info');
+    dom.imageUpload.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      showToast('Extracting text from image...', 'info');
+      if (dom.uploadImgBtn) dom.uploadImgBtn.disabled = true;
+
+      try {
+        const res = await api.extractText(file);
+        if (res && res.extracted_text) {
+          if (dom.messageInput) {
+            dom.messageInput.value = res.extracted_text;
+            autoResize(dom.messageInput);
+            dom.messageInput.focus();
+          }
+          showToast('Text extracted from image', 'success');
+        } else {
+          showToast('No text detected in image.', 'warning');
+        }
+      } catch (err) {
+        showToast(`Extraction failed: ${err.message}`, 'error');
+      } finally {
+        if (dom.uploadImgBtn) dom.uploadImgBtn.disabled = false;
+        dom.imageUpload.value = '';
       }
     });
   }

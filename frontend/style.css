@@ -624,6 +624,12 @@ input:focus, select:focus, textarea:focus {
   align-self: flex-end;
 }
 
+.message-bubble {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 /* Received: Outlined bubbles with 2px bottom-left tail corner & Bouncy Physics */
 .message-incoming .message-bubble {
   background: var(--bg-surface-subtle);
@@ -1378,6 +1384,21 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--hairline-strong);
   color: var(--text-main);
   background: var(--bg-surface-elevated);
+}
+
+.btn-note-toggle.has-note {
+  position: relative;
+}
+
+.btn-note-toggle.has-note::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 /* Send Button */
