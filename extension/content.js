@@ -23,7 +23,13 @@
   let shadowRoot = null;
 
   const COPILOT_CSS = `
-    :host, [data-theme="light"] {
+    /* ============================================================
+       TALKING COPILOT — PROOF DESK IN-PAGE OVERLAY STYLES
+       Isolated Shadow DOM Stylesheet for WhatsApp Web & Instagram
+       ============================================================ */
+
+    :host, :root {
+      /* Light Mode (Paper substrate - default) */
       --tk-paper: #F2EFE8;
       --tk-bg: #F7F5F0;
       --tk-surface: #E8E4DC;
@@ -37,6 +43,19 @@
       --tk-hairline-strong: rgba(22, 20, 15, 0.32);
       --tk-grid: rgba(22, 20, 15, 0.06);
       --tk-accent: #FF4F1F;
+
+      /* Liquid Glass Specular Bevels & Shadows */
+      --tk-glass-specular: inset 0 1px 1px 0 rgba(255, 255, 255, 0.75), inset 0 -1px 1px 0 rgba(22, 20, 15, 0.06);
+      --tk-glass-specular-active: inset 0 1px 2px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 1px 0 rgba(22, 20, 15, 0.12);
+      --tk-glass-shadow: 0 8px 30px rgba(22, 20, 15, 0.08), 0 2px 6px rgba(22, 20, 15, 0.04);
+      --tk-glass-bg: rgba(247, 245, 240, 0.92);
+      --tk-glass-surface: rgba(232, 228, 220, 0.85);
+
+      /* Fluid Kinematics (Apple Fluid Interfaces & Wispr Flow rational curves) */
+      --tk-spring-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+      --tk-spring-snappy: cubic-bezier(0.34, 1.45, 0.64, 1);
+      --tk-spring-squish: cubic-bezier(0.2, 0.8, 0.2, 1);
+
       --tk-font-voice: "Newsreader", "Source Serif 4", Georgia, "Times New Roman", serif, "Apple Color Emoji", "Segoe UI Emoji";
       --tk-font-machine: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     }
@@ -55,15 +74,20 @@
       --tk-hairline-strong: rgba(236, 231, 218, 0.32);
       --tk-grid: rgba(236, 231, 218, 0.06);
       --tk-accent: #FF4F1F;
+
+      /* Dark Liquid Glass Tokens */
+      --tk-glass-specular: inset 0 1px 1px 0 rgba(255, 255, 255, 0.20), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.45);
+      --tk-glass-specular-active: inset 0 1px 2px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.65);
+      --tk-glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.35);
+      --tk-glass-bg: rgba(19, 18, 13, 0.92);
+      --tk-glass-surface: rgba(23, 21, 15, 0.85);
     }
 
+    /* Box model resets */
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      box-shadow: none !important;
-      backdrop-filter: none !important;
-      -webkit-backdrop-filter: none !important;
     }
 
     /* Floating Launch Pill: 2px radius rectangle with mono TALK Alt+D and block caret */
@@ -75,7 +99,10 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      background: var(--tk-bg);
+      background: var(--tk-glass-bg);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      box-shadow: var(--tk-glass-specular), var(--tk-glass-shadow);
       border: 1px solid var(--tk-hairline-strong);
       border-radius: 2px;
       color: var(--tk-text);
@@ -88,11 +115,31 @@
       user-select: none;
       min-height: 32px;
       line-height: 1;
+      transition: transform 180ms var(--tk-spring-snappy), background 160ms ease, border-color 160ms ease, box-shadow 180ms ease;
+      transform-origin: center center;
     }
 
     #talking-copilot-pill:hover {
-      background: var(--tk-surface);
+      background: var(--tk-glass-surface);
       border-color: var(--tk-accent);
+      transform: translateY(-1px);
+      box-shadow: var(--tk-glass-specular-active), var(--tk-glass-shadow);
+    }
+
+    /* Apple volume preservation squish on active click (delta V = 0) */
+    #talking-copilot-pill:active {
+      transform: scale(0.96, 1.04);
+    }
+
+    #talking-copilot-pill.tk-launching {
+      animation: tkPillSquishLaunch 360ms var(--tk-spring-snappy);
+    }
+
+    @keyframes tkPillSquishLaunch {
+      0% { transform: scale(1); }
+      35% { transform: scale(0.94, 1.06); }
+      70% { transform: scale(1.02, 0.98); }
+      100% { transform: scale(1); }
     }
 
     .tk-brand-wordmark {
@@ -134,14 +181,17 @@
       padding-left: 8px;
     }
 
-    /* Floating Modal: Editorial Proof Desk */
+    /* Floating Modal: Editorial Proof Desk with Liquid Glass Optics & Apple Fluid Entrance */
     #talking-copilot-modal {
       position: fixed;
       bottom: 120px;
       right: 28px;
       width: 440px;
       max-width: calc(100vw - 40px);
-      background: var(--tk-bg);
+      background: var(--tk-glass-bg);
+      backdrop-filter: blur(20px) saturate(190%);
+      -webkit-backdrop-filter: blur(20px) saturate(190%);
+      box-shadow: var(--tk-glass-specular), var(--tk-glass-shadow);
       border: 1px solid var(--tk-hairline-strong);
       border-radius: 2px;
       z-index: 2147483647;
@@ -149,8 +199,33 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transform-origin: bottom right;
+      animation: tkFluidModalEntrance 280ms var(--tk-spring-fluid) forwards;
     }
 
+    @keyframes tkFluidModalEntrance {
+      0% {
+        opacity: 0;
+        transform: translateY(12px) scale(0.97);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes tkFluidModalExit {
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.97);
+      }
+    }
+
+    /* Registration marks on modal corners */
     #talking-copilot-modal::before {
       content: "⌜";
       position: absolute;
@@ -175,6 +250,7 @@
       pointer-events: none;
     }
 
+    /* Modal Header */
     .tk-header {
       display: flex;
       align-items: center;
@@ -232,12 +308,14 @@
       color: var(--tk-accent);
     }
 
+    /* Modal Body */
     .tk-body {
       padding: 12px 16px;
       display: flex;
       flex-direction: column;
       gap: 10px;
       background-color: var(--tk-bg);
+      /* 24px baseline grid */
       background-image: repeating-linear-gradient(
         to bottom,
         transparent 0px,
@@ -273,6 +351,7 @@
       justify-content: center;
     }
 
+    /* Takes / Tabs (A · CHILL [2], B · DIRECT, C · BANTER [2]) */
     .tk-variants-bar {
       display: flex;
       align-items: center;
@@ -297,6 +376,16 @@
       gap: 4px;
       border-radius: 0;
       min-height: 26px;
+      transition: color 150ms ease, border-color 200ms var(--tk-spring-snappy), transform 150ms var(--tk-spring-snappy);
+    }
+
+    .tk-variant-btn:hover {
+      color: var(--tk-text);
+      transform: translateY(-1px);
+    }
+
+    .tk-variant-btn:active {
+      transform: scale(0.96);
     }
 
     .tk-variant-btn.tk-active {
@@ -319,6 +408,7 @@
       color: var(--tk-accent);
     }
 
+    /* Multi-Bubble Bursts */
     .tk-bubbles-stack {
       display: flex;
       flex-direction: column;
@@ -331,6 +421,7 @@
       border: 1px dashed var(--tk-accent);
       background: var(--tk-paper);
       color: var(--tk-text);
+      box-shadow: var(--tk-glass-specular);
       border-radius: 14px 14px 2px 14px;
       padding: 6px 12px;
       font-family: var(--tk-font-voice);
@@ -340,10 +431,28 @@
       display: flex;
       align-items: baseline;
       gap: 8px;
+      animation: tkBubbleEntrance 220ms var(--tk-spring-fluid) backwards;
+      transition: transform 160ms var(--tk-spring-snappy), border-color 140ms ease, box-shadow 160ms ease;
+    }
+
+    @keyframes tkBubbleEntrance {
+      0% {
+        opacity: 0;
+        transform: translateY(6px) scale(0.98);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
     }
 
     .tk-bubble-item:hover {
       border-color: var(--tk-ink);
+      transform: translateY(-1px);
+    }
+
+    .tk-bubble-item:active {
+      transform: scale(0.98);
     }
 
     .tk-bubble-num {
@@ -366,6 +475,7 @@
       margin-left: auto;
     }
 
+    /* Editable Take Area */
     .tk-draft-textarea {
       width: 100%;
       min-height: 72px;
@@ -385,6 +495,7 @@
       border-color: var(--tk-accent);
     }
 
+    /* Modal Footer */
     .tk-footer {
       display: flex;
       align-items: center;
@@ -432,25 +543,41 @@
       border-radius: 2px;
       border: 1px solid var(--tk-hairline);
       background: var(--tk-bg);
+      box-shadow: var(--tk-glass-specular);
       color: var(--tk-text);
       cursor: pointer;
       min-height: 30px;
+      transition: transform 140ms var(--tk-spring-snappy), background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
     }
 
     .tk-btn:hover {
       background: var(--tk-surface-elevated);
       border-color: var(--tk-hairline-strong);
+      transform: translateY(-1px);
     }
 
+    .tk-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* Primary Insert Button: Solid Ink with Specular Bevel */
     .tk-btn-primary {
       background: var(--tk-ink) !important;
       color: var(--tk-paper) !important;
       border: 1px solid var(--tk-ink) !important;
+      box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15) !important;
       font-weight: 600;
+      transition: transform 140ms var(--tk-spring-snappy), opacity 140ms ease, box-shadow 140ms ease !important;
     }
 
     .tk-btn-primary:hover {
-      opacity: 0.92;
+      opacity: 0.94;
+      transform: translateY(-1px);
+      box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    .tk-btn-primary:active {
+      transform: scale(0.97);
     }
   `;
 
@@ -787,6 +914,10 @@
     `;
 
     pill.addEventListener('click', () => {
+      pill.classList.remove('tk-launching');
+      void pill.offsetWidth;
+      pill.classList.add('tk-launching');
+      setTimeout(() => pill.classList.remove('tk-launching'), 400);
       triggerDraftGeneration();
     });
 
@@ -796,7 +927,12 @@
   function closeCopilotModal() {
     const root = ensureShadowRoot();
     const existing = root.getElementById('talking-copilot-modal');
-    if (existing) existing.remove();
+    if (existing) {
+      existing.style.animation = 'tkFluidModalExit 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards';
+      setTimeout(() => {
+        if (existing.parentNode) existing.remove();
+      }, 160);
+    }
   }
 
   function openCopilotModal(contactName, incomingText, isLoading = true, draftData = null) {
@@ -892,6 +1028,7 @@
       bubbles.forEach((bText, idx) => {
         const item = document.createElement('div');
         item.className = 'tk-bubble-item';
+        item.style.animationDelay = `${idx * 40}ms`;
         item.title = 'Click to insert only this bubble';
         item.innerHTML = `
           <span class="tk-bubble-num">0${idx + 1}</span>
@@ -1045,6 +1182,14 @@
   window.addEventListener('keydown', (e) => {
     if (e.altKey && (e.key === 'd' || e.key === 'D')) {
       e.preventDefault();
+      const root = ensureShadowRoot();
+      const pill = root.getElementById('talking-copilot-pill');
+      if (pill) {
+        pill.classList.remove('tk-launching');
+        void pill.offsetWidth;
+        pill.classList.add('tk-launching');
+        setTimeout(() => pill.classList.remove('tk-launching'), 400);
+      }
       triggerDraftGeneration();
       return;
     }

@@ -1,6 +1,7 @@
 /* ============================================================
    PROOF DESK — DESIGN SYSTEM TOKENS
    Talking Private Reply-Drafting Tool
+   With Liquid Glass & Apple / Wispr Fluid Kinematics
    ============================================================ */
 
 :root {
@@ -23,6 +24,11 @@
   --hairline-subtle: rgba(22, 20, 15, 0.10);
   --hairline-strong: rgba(22, 20, 15, 0.32);
   --grid-line: rgba(22, 20, 15, 0.06);
+
+  /* Liquid Glass Specular Bevels (Aceternity UI precision optics) */
+  --glass-specular: inset 0 1px 1px 0 rgba(255, 255, 255, 0.65), inset 0 -1px 1px 0 rgba(22, 20, 15, 0.06);
+  --glass-specular-active: inset 0 1px 2px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 1px 0 rgba(22, 20, 15, 0.12);
+  --glass-subtle-glow: 0 4px 16px rgba(22, 20, 15, 0.04);
 
   /* ONE Accent: Editorial Proofmark */
   --accent: #FF4F1F;
@@ -54,6 +60,13 @@
   --machine-line: 16px;
   --machine-tracking: 0.04em;
   --machine-transform: uppercase;
+
+  /* Fluid Kinematics (Apple Fluid Interfaces & Wispr Flow rational curves) */
+  --spring-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring-snappy: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --spring-squish: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fluid: 280ms;
+  --duration-fast: 160ms;
 }
 
 /* ── Dark Mode (Carbon proof board) ── */
@@ -74,6 +87,11 @@
   --hairline-subtle: rgba(236, 231, 218, 0.10);
   --hairline-strong: rgba(236, 231, 218, 0.32);
   --grid-line: rgba(236, 231, 218, 0.06);
+
+  /* Dark mode liquid glass specular edge */
+  --glass-specular: inset 0 1px 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
+  --glass-specular-active: inset 0 1px 2px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.6);
+  --glass-subtle-glow: 0 4px 20px rgba(0, 0, 0, 0.4);
 
   --accent: #FF4F1F;
   --accent-ink: #FFFFFF;
@@ -102,6 +120,10 @@
     --hairline-subtle: rgba(236, 231, 218, 0.10);
     --hairline-strong: rgba(236, 231, 218, 0.32);
     --grid-line: rgba(236, 231, 218, 0.06);
+
+    --glass-specular: inset 0 1px 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
+    --glass-specular-active: inset 0 1px 2px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.6);
+    --glass-subtle-glow: 0 4px 20px rgba(0, 0, 0, 0.4);
 
     --accent: #FF4F1F;
     --accent-ink: #FFFFFF;

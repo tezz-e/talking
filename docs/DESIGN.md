@@ -39,6 +39,7 @@ Typography in Talking strictly separates human communication from machine instru
 - **Surface / Desk (`--bg-surface`, `--bg-desk`)**: `#E8E4DC` / `#F7F5F0`
 - **Hairline Rule (`--hairline`)**: `rgba(22, 20, 15, 0.18)` (18% ink)
 - **Baseline Grid (`--grid-line`)**: `rgba(22, 20, 15, 0.06)` (6% ink, drawn strictly on composer & draft desk)
+- **Liquid Glass Specular (`--glass-specular`)**: `inset 0 1px 1px 0 rgba(255, 255, 255, 0.65), inset 0 -1px 1px 0 rgba(22, 20, 15, 0.06)` (Aceternity UI precision optics)
 - **Text Muted (`--text-muted`)**: `rgba(22, 20, 15, 0.62)`
 - **Sole Accent (`--accent`)**: `#FF4F1F` (proofreader orange-red; used ONLY for caret, revision marks, active tab underline, focus ring)
 
@@ -48,8 +49,18 @@ Typography in Talking strictly separates human communication from machine instru
 - **Text / Paper (`--text-main`, `--ink`)**: `#ECE7DA`
 - **Hairline Rule (`--hairline`)**: `rgba(236, 231, 218, 0.18)`
 - **Baseline Grid (`--grid-line`)**: `rgba(236, 231, 218, 0.06)`
+- **Dark Glass Specular (`--glass-specular`)**: `inset 0 1px 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4)`
 - **Text Muted (`--text-muted`)**: `rgba(236, 231, 218, 0.62)`
 - **Sole Accent (`--accent`)**: `#FF4F1F`
+
+### Fluid Kinematics & Motion Physics (Apple Fluid Interfaces & Wispr Flow)
+- **Rational Damped Springs**:
+  - `--spring-fluid`: `cubic-bezier(0.16, 1, 0.3, 1)` (Apple hyperbolic settle curve for modal expansion)
+  - `--spring-snappy`: `cubic-bezier(0.34, 1.45, 0.64, 1)` (Wispr tactile spring with subtle detent overshoot)
+  - `--spring-squish`: `cubic-bezier(0.2, 0.8, 0.2, 1)` (Volume preservation click/launch squish)
+- **Volume Preservation ($\Delta V = 0$)**: On click/trigger, physical elements briefly squish along one axis while expanding along the other (`scale(0.96, 1.04)`) before releasing, conveying physical mass and surface tension without messy gooey SVG distortion.
+- **Staggered Bubble Cascade**: Multi-bubble draft bursts cascade in with rational 40ms stagger delays.
+- **Strictly No Mercury**: No SVG `feColorMatrix` blob merging or molten threshold filters. Razor-sharp optical refraction and geometry only.
 
 ---
 

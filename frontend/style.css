@@ -129,6 +129,7 @@ input:focus, select:focus, textarea:focus {
   padding: 8px 16px;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   flex-shrink: 0;
   gap: 16px;
   min-height: 48px;
@@ -248,12 +249,25 @@ input:focus, select:focus, textarea:focus {
   padding: 4px 10px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-main);
   display: flex;
   align-items: center;
   gap: 6px;
   height: 30px;
+  cursor: pointer;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.theme-toggle-btn:hover {
+  border-color: var(--hairline-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--glass-specular-active);
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.96);
 }
 
 /* ---------- Main Layout (Chat Studio + Sidebar) ---------- */
@@ -534,11 +548,17 @@ input:focus, select:focus, textarea:focus {
   height: 28px;
   min-height: 28px;
   border-radius: 0;
+  transition: color 150ms ease, border-color 200ms var(--spring-snappy), transform 150ms var(--spring-snappy);
 }
 
 .variant-chip:hover {
   color: var(--text-main);
   background: transparent;
+  transform: translateY(-1px);
+}
+
+.variant-chip:active {
+  transform: scale(0.96);
 }
 
 .variant-chip.active {
@@ -593,17 +613,36 @@ input:focus, select:focus, textarea:focus {
   max-width: 80%;
   border: 1px dashed var(--accent);
   background: var(--bg-app);
+  box-shadow: var(--glass-specular);
   color: var(--text-main);
   border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble-tail) var(--radius-bubble);
   padding: 8px 14px;
   display: flex;
   align-items: baseline;
   gap: 8px;
-  transition: all 100ms ease;
+  animation: dashboardBubbleCascade 240ms var(--spring-fluid) backwards;
+  transition: transform 180ms var(--spring-snappy), border-color 140ms ease, box-shadow 180ms ease;
+}
+
+@keyframes dashboardBubbleCascade {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .dashboard-bubble-item:hover {
   border-color: var(--text-main);
+  transform: translateY(-1px);
+  box-shadow: var(--glass-specular-active);
+}
+
+.dashboard-bubble-item:active {
+  transform: scale(0.98);
 }
 
 .dashboard-bubble-item .bubble-idx {
@@ -664,11 +703,12 @@ input:focus, select:focus, textarea:focus {
   gap: 12px;
 }
 
-/* Primary Action: Solid Ink Button with Paper Text */
+/* Primary Action: Solid Ink Button with Paper Text & Specular Bevel */
 .btn-approve {
   background: var(--ink) !important;
   color: var(--paper) !important;
   border: 1px solid var(--ink) !important;
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.28), 0 2px 8px rgba(0, 0, 0, 0.16) !important;
   border-radius: var(--radius-chrome);
   font-family: var(--font-machine);
   font-size: var(--machine-size);
@@ -682,14 +722,18 @@ input:focus, select:focus, textarea:focus {
   height: 34px;
   min-height: 34px;
   cursor: pointer;
+  transition: transform 140ms var(--spring-snappy), opacity 140ms ease, box-shadow 140ms ease !important;
 }
 
 .btn-approve:hover:not(:disabled) {
-  opacity: 0.92;
+  opacity: 0.94;
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.38), 0 4px 14px rgba(0, 0, 0, 0.2) !important;
 }
 
 .btn-approve:active:not(:disabled) {
-  opacity: 0.85;
+  transform: scale(0.97);
+  opacity: 0.88;
 }
 
 .btn-icon-editorial {
@@ -702,12 +746,20 @@ input:focus, select:focus, textarea:focus {
   justify-content: center;
   background: var(--bg-surface);
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   color: var(--text-main);
   border-radius: var(--radius-chrome);
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
 
 .btn-icon-editorial:hover:not(:disabled) {
   border-color: var(--hairline-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--glass-specular-active);
+}
+
+.btn-icon-editorial:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 /* Marks Toggle Button */
@@ -830,8 +882,9 @@ input:focus, select:focus, textarea:focus {
   width: 100%;
   min-height: 48px;
   max-height: 180px;
-  background: transparent;
+  background: var(--bg-surface-subtle);
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   padding: 11px 14px;
   font-family: var(--font-voice);
@@ -841,10 +894,12 @@ input:focus, select:focus, textarea:focus {
   resize: none;
   outline: none;
   box-sizing: border-box;
+  transition: border-color 160ms var(--spring-fluid), box-shadow 160ms var(--spring-fluid);
 }
 
 #messageInput:focus {
   border-color: var(--accent);
+  box-shadow: var(--glass-specular), 0 0 0 1px var(--accent);
 }
 
 /* Visually Hidden Native File Input */
@@ -872,14 +927,22 @@ input:focus, select:focus, textarea:focus {
   justify-content: center;
   background: var(--bg-surface);
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-muted);
   cursor: pointer;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
 
 .btn-attach:hover {
   border-color: var(--hairline-strong);
   color: var(--text-main);
+  transform: translateY(-1px);
+  box-shadow: var(--glass-specular-active);
+}
+
+.btn-attach:active {
+  transform: scale(0.96);
 }
 
 /* Pro Mode Switch (Mono Toggle) */
@@ -893,6 +956,7 @@ input:focus, select:focus, textarea:focus {
   min-height: 44px;
   background: var(--bg-surface);
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-muted);
   display: flex;
@@ -900,6 +964,16 @@ input:focus, select:focus, textarea:focus {
   gap: 6px;
   cursor: pointer;
   white-space: nowrap;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.btn-pro-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--glass-specular-active);
+}
+
+.btn-pro-toggle:active {
+  transform: scale(0.97);
 }
 
 .btn-pro-toggle.active {
@@ -919,6 +993,7 @@ input:focus, select:focus, textarea:focus {
   min-height: 44px;
   background: var(--bg-surface);
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   color: var(--text-muted);
   display: flex;
@@ -926,6 +1001,16 @@ input:focus, select:focus, textarea:focus {
   gap: 6px;
   cursor: pointer;
   white-space: nowrap;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.btn-note-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--glass-specular-active);
+}
+
+.btn-note-toggle:active {
+  transform: scale(0.97);
 }
 
 .btn-note-toggle.active {
@@ -945,12 +1030,21 @@ input:focus, select:focus, textarea:focus {
   background: var(--ink);
   color: var(--paper);
   border: 1px solid var(--ink);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.28), 0 2px 8px rgba(0, 0, 0, 0.16) !important;
   border-radius: var(--radius-chrome);
   cursor: pointer;
+  transition: transform 140ms var(--spring-snappy), opacity 140ms ease, box-shadow 140ms ease;
 }
 
 .btn-send:hover:not(:disabled) {
-  opacity: 0.9;
+  opacity: 0.94;
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.38), 0 4px 14px rgba(0, 0, 0, 0.2) !important;
+}
+
+.btn-send:active:not(:disabled) {
+  transform: scale(0.96);
+  opacity: 0.88;
 }
 
 .composer-footer {
@@ -982,6 +1076,7 @@ input:focus, select:focus, textarea:focus {
 .sidebar-panel {
   background: var(--bg-app);
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   padding: 14px;
   display: flex;
@@ -1040,6 +1135,7 @@ input:focus, select:focus, textarea:focus {
   background: var(--hairline-subtle);
   padding: 2px;
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
 }
 
@@ -1054,15 +1150,22 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-muted);
   min-height: 26px;
   height: 26px;
-  border-radius: 0;
+  border-radius: 1px;
   cursor: pointer;
   text-align: center;
+  transition: transform 120ms var(--spring-snappy), background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.segmented-btn:hover:not(.active) {
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.03);
 }
 
 .segmented-btn.active {
   background: var(--bg-app);
   color: var(--text-main);
   font-weight: 600;
+  box-shadow: var(--glass-specular);
 }
 
 /* Tag Chips for Interests */
@@ -1080,12 +1183,19 @@ input:focus, select:focus, textarea:focus {
   text-transform: uppercase;
   padding: 2px 8px;
   border: 1px solid var(--hairline);
+  box-shadow: var(--glass-specular);
   border-radius: var(--radius-chrome);
   background: var(--bg-surface);
   color: var(--text-main);
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: transform 140ms var(--spring-snappy), border-color 140ms ease;
+}
+
+.tag-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--hairline-strong);
 }
 
 .tag-chip-remove {

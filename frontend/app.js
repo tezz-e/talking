@@ -722,6 +722,7 @@ function renderDraftContent(draftText, bubbles = []) {
     bubbles.forEach((bText, idx) => {
       const bEl = document.createElement('div');
       bEl.className = 'dashboard-bubble-item';
+      bEl.style.animationDelay = `${idx * 45}ms`;
       const formatted = renderTextWithMarks(bText, state.previousDraft);
       bEl.innerHTML = `
         <span class="bubble-idx">0${idx + 1}</span>
