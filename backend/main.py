@@ -1,12 +1,16 @@
 import os
+import logging
+import secrets
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger("talking.api")
 
 from .models import (
     ContactCreate, ContactUpdate, GenerateRequest, GenerateResponse,
@@ -28,13 +32,68 @@ from .ingestion.fact_miner import FactMiner
 
 app = FastAPI(title="Talking API")
 
+# Server-side API protection token (generated at startup, compared with secrets.compare_digest)
+SERVER_API_TOKEN = os.getenv("TALKING_API_TOKEN") or secrets.token_hex(32)
+
+ALLOWED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+# Support additional configured origins or local test ports
+_extra_origins = os.getenv("ADDITIONAL_ALLOWED_ORIGINS", "")
+if _extra_origins:
+    for _orig in _extra_origins.split(","):
+        _orig = _orig.strip()
+        if _orig and _orig not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(_orig)
+
+# Add local test runner ports (e.g. Playwright on 8199)
+for _port in ("8199", "8080"):
+    for _host in ("localhost", "127.0.0.1"):
+        _test_orig = f"http://{_host}:{_port}"
+        if _test_orig not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(_test_orig)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    # 1. Reject requests whose Origin header is present and not in the allowed list
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in ALLOWED_ORIGINS:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": f"Forbidden origin: {origin}"}
+        )
+
+    # 2. Allow CORS preflight requests
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    # 3. Require valid X-Talking-Token on all state-changing methods
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        token = request.headers.get("x-talking-token") or ""
+        if not token or not secrets.compare_digest(token, SERVER_API_TOKEN):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Invalid or missing X-Talking-Token"}
+            )
+
+    return await call_next(request)
+
+@app.get("/api/auth/token")
+def get_auth_token(request: Request):
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in ALLOWED_ORIGINS:
+        raise HTTPException(status_code=403, detail="Forbidden origin")
+    return {"token": SERVER_API_TOKEN}
 
 # Initialize core components
 BASE_DIR = Path(__file__).parent.parent
@@ -495,6 +554,23 @@ def start_instagram_watcher(req: WatcherStartRequest):
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
 
+    if req.full_auto:
+        allow_full_auto = os.getenv("ALLOW_FULL_AUTO", "0").strip()
+        if allow_full_auto != "1":
+            raise HTTPException(
+                status_code=403,
+                detail="Full auto-send is disabled server-side. Set ALLOW_FULL_AUTO=1 to enable."
+            )
+        if not req.confirm_full_auto:
+            raise HTTPException(
+                status_code=403,
+                detail="Full auto-send requires explicit confirmation with confirm_full_auto: true."
+            )
+        logger.warning(
+            f"[AUTO-SEND ENABLED] Watcher session starting with full_auto=True for contact_id={req.contact_id} "
+            f"target={req.instagram_url} confirmed=True"
+        )
+
     from .instagram_watcher import start_watcher, get_state
     current_state = get_state()
     if current_state.get("running"):
@@ -723,4 +799,9 @@ app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
 
 @app.get("/")
 def serve_index():
-    return FileResponse(str(frontend_dir / "index.html"))
+    index_file = frontend_dir / "index.html"
+    content = index_file.read_text(encoding="utf-8")
+    token_meta = f'<meta name="talking-token" content="{SERVER_API_TOKEN}" />'
+    if "<head>" in content:
+        content = content.replace("<head>", f"<head>\n  {token_meta}", 1)
+    return HTMLResponse(content=content, media_type="text/html")

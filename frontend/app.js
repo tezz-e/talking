@@ -34,18 +34,58 @@ const state = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// API Layer
+// API Layer & Security Token
 // ─────────────────────────────────────────────────────────────
 
+let apiToken = document.querySelector('meta[name="talking-token"]')?.content || window.__TALKING_TOKEN__ || '';
+
+async function ensureApiToken() {
+  if (apiToken) return apiToken;
+  try {
+    const res = await fetch('/api/auth/token');
+    if (res.ok) {
+      const data = await res.json();
+      apiToken = data.token || '';
+      const meta = document.querySelector('meta[name="talking-token"]');
+      if (meta) meta.content = apiToken;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch API auth token:', err);
+  }
+  return apiToken;
+}
+
 const api = {
-  /** Helper: make a fetch request and return parsed JSON. */
+  /** Helper: make a fetch request and return parsed JSON with X-Talking-Token header. */
   async _fetch(url, options = {}) {
+    if (!apiToken) {
+      await ensureApiToken();
+    }
     const isFormData = options.body instanceof FormData;
     const defaultHeaders = isFormData ? {} : { 'Content-Type': 'application/json' };
-    const res = await fetch(url, {
+    if (apiToken) {
+      defaultHeaders['X-Talking-Token'] = apiToken;
+    }
+    let res = await fetch(url, {
       ...options,
       headers: { ...defaultHeaders, ...(options.headers || {}) }
     });
+    // If token was rejected/stale (e.g. server restart), refresh token and retry once
+    if (res.status === 403) {
+      const clone = res.clone();
+      const bodyText = await clone.text().catch(() => '');
+      if (bodyText.includes('X-Talking-Token')) {
+        apiToken = '';
+        const refreshed = await ensureApiToken();
+        if (refreshed) {
+          defaultHeaders['X-Talking-Token'] = refreshed;
+          res = await fetch(url, {
+            ...options,
+            headers: { ...defaultHeaders, ...(options.headers || {}) }
+          });
+        }
+      }
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error(`API ${res.status}: ${body || res.statusText}`);
@@ -194,7 +234,8 @@ const api = {
         contact_id: contactId,
         instagram_url: instagramUrl,
         mood: mood,
-        full_auto: fullAuto
+        full_auto: fullAuto,
+        confirm_full_auto: Boolean(fullAuto)
       })
     });
   },

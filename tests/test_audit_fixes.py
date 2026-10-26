@@ -392,9 +392,9 @@ class TestMilestoneFeatures(unittest.TestCase):
 
     def test_fact_api_endpoints(self):
         from fastapi.testclient import TestClient
-        from backend.main import app
+        from backend.main import app, SERVER_API_TOKEN
 
-        client = TestClient(app)
+        client = TestClient(app, headers={"X-Talking-Token": SERVER_API_TOKEN})
 
         # 1. Create a test contact
         create_res = client.post("/api/contacts", json={"name": "API Test Contact"})
@@ -427,7 +427,7 @@ class TestMilestoneFeatures(unittest.TestCase):
     def test_copilot_draft_endpoint(self):
         from fastapi.testclient import TestClient
         from unittest.mock import patch
-        from backend.main import app, db
+        from backend.main import app, db, SERVER_API_TOKEN
 
         mock_variants = {
             "chill": {"text": "hey chill", "bubbles": ["hey chill"]},
@@ -435,7 +435,7 @@ class TestMilestoneFeatures(unittest.TestCase):
             "banter": {"text": "hey banter", "bubbles": ["hey banter"]}
         }
         with patch("backend.main.llm.generate_variants", return_value=mock_variants):
-            client = TestClient(app)
+            client = TestClient(app, headers={"X-Talking-Token": SERVER_API_TOKEN})
 
             copilot_res = client.post(
                 "/api/copilot/draft",
@@ -568,7 +568,7 @@ Hope this helps!"""
         """Verifies that /api/copilot/draft returns the bubbles array."""
         from fastapi.testclient import TestClient
         from unittest.mock import patch
-        from backend.main import app, db
+        from backend.main import app, db, SERVER_API_TOKEN
 
         mock_variants = {
             "chill": {"text": "hey there", "bubbles": ["hey there"]},
@@ -576,7 +576,7 @@ Hope this helps!"""
             "banter": {"text": "maybe, what's up?", "bubbles": ["maybe,", "what's up?"]}
         }
         with patch("backend.main.llm.generate_variants", return_value=mock_variants):
-            client = TestClient(app)
+            client = TestClient(app, headers={"X-Talking-Token": SERVER_API_TOKEN})
             res = client.post(
                 "/api/copilot/draft",
                 json={
@@ -601,11 +601,11 @@ Hope this helps!"""
         """Verifies start, status, and stop endpoints for Playwright Instagram watcher."""
         from fastapi.testclient import TestClient
         from unittest.mock import patch
-        from backend.main import app, db
+        from backend.main import app, db, SERVER_API_TOKEN
         from backend.models import Contact
 
         test_c = db.add_contact(Contact(name="Watcher Test Contact"))
-        client = TestClient(app)
+        client = TestClient(app, headers={"X-Talking-Token": SERVER_API_TOKEN})
 
         # Status check
         res = client.get("/api/watcher/status")

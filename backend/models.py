@@ -168,6 +168,7 @@ class WatcherStartRequest(BaseModel):
     instagram_url: str = Field(..., description="Instagram thread URL or username")
     mood: Optional[str] = Field(default="default", description="Tone for generated replies")
     full_auto: bool = Field(default=False, description="Automatically send approved drafts without waiting")
+    confirm_full_auto: Optional[bool] = Field(default=False, description="Explicit confirmation required to engage full_auto")
 
 
 class GenerateResponse(BaseModel):
