@@ -41,6 +41,7 @@ data/VIT_*.md
 *.bak
 *.swp
 *.tmp
+codebase_dump.txt
 
 # Operating system files
 .DS_Store
