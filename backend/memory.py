@@ -8,6 +8,8 @@ with Gemini embeddings for retrieval-augmented generation.
 import json
 import logging
 import math
+import os
+import hashlib
 import re
 import sqlite3
 import uuid
@@ -137,6 +139,8 @@ class SQLiteVectorStore:
                 """,
                 rows,
             )
+
+    upsert = add
 
     def query(
         self,
@@ -291,7 +295,7 @@ class MemoryStore:
             return 0
 
         EMBED_BATCH = 30   # texts per API call
-        DELAY_SECS  = 30   # seconds between API calls
+        DELAY_SECS  = int(os.getenv("EMBED_DELAY_SECS", "2"))   # seconds between API calls (configurable)
 
         total = len(chunks)
         added = 0
@@ -299,7 +303,12 @@ class MemoryStore:
         for i in range(0, total, EMBED_BATCH):
             batch = chunks[i : i + EMBED_BATCH]
 
-            batch_ids = [str(uuid.uuid4()) for _ in batch]
+            batch_ids = [
+                hashlib.sha256(
+                    f"{c.get('contact_id', '')}:{c.get('timestamp', '')}:{c.get('text', '')}".encode("utf-8")
+                ).hexdigest()[:32]
+                for c in batch
+            ]
             batch_docs = [c["text"] for c in batch]
             batch_meta = [
                 {
@@ -318,7 +327,8 @@ class MemoryStore:
             # Store with pre-computed embeddings so Chroma never auto-embeds.
             store_name = "ChromaDB collection" if self._using_chroma else "SQLite vector store"
             print(f"[MEMORY] Writing to {store_name}...")
-            self._collection.add(
+            write_fn = getattr(self._collection, "upsert", self._collection.add)
+            write_fn(
                 ids=batch_ids,
                 documents=batch_docs,
                 metadatas=batch_meta,

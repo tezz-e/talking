@@ -1,6 +1,7 @@
 import os
 import logging
 import secrets
+from collections import Counter
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
@@ -649,8 +650,8 @@ def run_ingestion(source: str, contact_name: str, path: str):
             parser = WhatsAppParser(contact_name)
             if os.path.isfile(path):
                 msgs = parser.parse_file(path)
-                other_senders = set(m.sender for m in msgs if not m.is_user)
-                them_name = list(other_senders)[0] if other_senders else "Unknown"
+                other_senders = [m.sender for m in msgs if not m.is_user]
+                them_name = Counter(other_senders).most_common(1)[0][0] if other_senders else "Unknown"
                 conversations = {them_name: msgs}
             else:
                 conversations = parser.parse_folder(path)
@@ -694,8 +695,8 @@ def run_ingestion(source: str, contact_name: str, path: str):
             if not msgs:
                 continue
             
-            other_senders = set(m.sender for m in msgs if not m.is_user)
-            true_name = list(other_senders)[0] if other_senders else them_name
+            other_senders = [m.sender for m in msgs if not m.is_user]
+            true_name = Counter(other_senders).most_common(1)[0][0] if other_senders else them_name
             
             contact = next((c for c in existing_contacts if c.name == true_name), None)
             if not contact:

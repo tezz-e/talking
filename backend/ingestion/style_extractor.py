@@ -363,7 +363,12 @@ class StyleExtractor:
                 if all_messages[i].is_user:
                     total_user_in_thread += 1
                     if all_messages[i - 1].is_user:
-                        consecutive += 1
+                        try:
+                            delta = abs((all_messages[i].timestamp - all_messages[i - 1].timestamp).total_seconds())
+                            if delta <= 300:
+                                consecutive += 1
+                        except Exception:
+                            consecutive += 1
             double_texting_rate = (
                 round(consecutive / total_user_in_thread * 100, 1)
                 if total_user_in_thread > 0

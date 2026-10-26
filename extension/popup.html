@@ -4,67 +4,98 @@
   <meta charset="UTF-8">
   <title>Talking Copilot</title>
   <style>
+    :root {
+      --tk-bg: #13120D;
+      --tk-surface: #1C1A14;
+      --tk-ink: #ECE7DA;
+      --tk-text-muted: rgba(236, 231, 218, 0.65);
+      --tk-hairline: rgba(236, 231, 218, 0.15);
+      --tk-accent: #FF4F1F;
+    }
     body {
       width: 280px;
       margin: 0;
       padding: 16px;
-      background: #0f0f17;
-      color: #f4f4f5;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--tk-bg);
+      color: var(--tk-ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
       font-size: 13px;
       line-height: 1.5;
     }
     .header {
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: space-between;
       margin-bottom: 12px;
       padding-bottom: 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid var(--tk-hairline);
     }
-    .logo {
-      font-size: 18px;
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--tk-accent);
     }
     .title {
       font-weight: 700;
-      font-size: 15px;
-      color: #fff;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--tk-ink);
     }
     .status-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       font-size: 12px;
-      color: #a1a1aa;
+      color: var(--tk-text-muted);
     }
     .badge {
       padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 11px;
+      border-radius: 4px;
+      font-size: 10px;
       font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
     .badge.online {
-      background: rgba(16, 185, 129, 0.2);
+      background: rgba(16, 185, 129, 0.15);
       color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
     }
     .badge.offline {
-      background: rgba(239, 68, 68, 0.2);
+      background: rgba(239, 68, 68, 0.15);
       color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
     }
     .shortcuts-card {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
+      background: var(--tk-surface);
+      border: 1px solid var(--tk-hairline);
+      border-radius: 4px;
       padding: 10px;
       margin-top: 10px;
     }
-    .kbd {
-      background: rgba(255, 255, 255, 0.12);
-      padding: 2px 6px;
-      border-radius: 4px;
+    .card-title {
+      font-weight: 600;
       font-size: 11px;
-      color: #fff;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      color: var(--tk-ink);
+    }
+    .kbd {
+      background: rgba(236, 231, 218, 0.12);
+      border: 1px solid var(--tk-hairline);
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--tk-ink);
       font-family: monospace;
     }
     .btn {
@@ -72,15 +103,17 @@
       width: 100%;
       box-sizing: border-box;
       text-align: center;
-      padding: 8px;
+      padding: 9px;
       margin-top: 12px;
-      background: linear-gradient(135deg, #7c3aed, #a855f7);
-      color: #fff;
+      background: var(--tk-accent);
+      color: #FFFFFF;
       text-decoration: none;
-      border-radius: 8px;
+      border-radius: 4px;
       font-weight: 600;
-      font-size: 12px;
-      transition: filter 0.15s;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: filter 0.15s, opacity 0.15s;
     }
     .btn:hover {
       filter: brightness(1.1);
@@ -89,8 +122,10 @@
 </head>
 <body>
   <div class="header">
-    <span class="logo">⚡</span>
-    <span class="title">Talking Copilot</span>
+    <div class="logo-group">
+      <span class="logo-dot"></span>
+      <span class="title">Talking Copilot</span>
+    </div>
   </div>
 
   <div class="status-row">
@@ -99,17 +134,17 @@
   </div>
 
   <div class="shortcuts-card">
-    <div style="font-weight: 600; margin-bottom: 6px; color: #e4e4e7;">Supported Sites</div>
-    <div style="font-size: 12px; color: #a1a1aa; margin-bottom: 8px;">
+    <div class="card-title">Supported Platforms</div>
+    <div style="font-size: 12px; color: var(--tk-text-muted); margin-bottom: 8px;">
       • WhatsApp Web (web.whatsapp.com)<br/>
       • Instagram Direct (instagram.com/direct)
     </div>
-    <div style="font-size: 12px; color: #a1a1aa;">
-      Press <span class="kbd">Alt+D</span> anywhere in chat to trigger instant AI drafts.
+    <div style="font-size: 12px; color: var(--tk-text-muted);">
+      Press <span class="kbd">Alt+D</span> in any chat to trigger instant Proof Desk draft burst.
     </div>
   </div>
 
-  <a class="btn" href="http://localhost:8000" target="_blank">Open Talking Dashboard ↗</a>
+  <a class="btn" href="http://localhost:8000" target="_blank">Open Proof Desk Dashboard ↗</a>
 
   <script src="popup.js"></script>
 </body>
