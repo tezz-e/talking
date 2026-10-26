@@ -570,13 +570,18 @@ input:focus, select:focus, textarea:focus {
 
 .message-incoming {
   align-self: flex-start;
+  align-items: flex-start;
 }
 
 .message-outgoing {
   align-self: flex-end;
+  align-items: flex-end;
 }
 
 .message-bubble {
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -588,7 +593,7 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid var(--hairline);
   color: var(--text-main);
   border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble) var(--radius-bubble-tail);
-  padding: 10px 14px;
+  padding: 8px 14px;
   font-family: var(--font-voice);
   font-size: var(--voice-size);
   line-height: var(--voice-line);
@@ -602,7 +607,7 @@ input:focus, select:focus, textarea:focus {
   color: var(--paper);
   border: 1px solid var(--ink);
   border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble-tail) var(--radius-bubble);
-  padding: 10px 14px;
+  padding: 8px 14px;
   font-family: var(--font-voice);
   font-size: var(--voice-size);
   line-height: var(--voice-line);

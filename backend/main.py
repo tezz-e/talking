@@ -649,6 +649,71 @@ def get_instagram_watcher_status():
     from .instagram_watcher import get_state
     return get_state()
 
+@app.get("/api/watcher/screenshot")
+async def watcher_screenshot():
+    from .instagram_watcher import _page_ref, _loop_ref
+    if _page_ref is None or _loop_ref is None:
+        return {"error": "no active page"}
+    import asyncio
+    import concurrent.futures
+    from pathlib import Path
+    shot_path = Path(r"C:\Users\manee\.gemini\antigravity\brain\1e41d2e8-ed53-4ec2-8f04-43c83169c8ff\screenshots\live_instagram.png")
+    shot_path.parent.mkdir(parents=True, exist_ok=True)
+    future = asyncio.run_coroutine_threadsafe(_page_ref.screenshot(path=str(shot_path)), _loop_ref)
+    await asyncio.wrap_future(future)
+    return {"status": "ok", "url": _page_ref.url, "path": str(shot_path)}
+
+@app.get("/api/watcher/goto_tezz")
+async def watcher_goto_tezz():
+    from .instagram_watcher import _page_ref, _loop_ref, get_recent_history
+    if _page_ref is None or _loop_ref is None:
+        return {"error": "no active page"}
+    import asyncio
+    async def _do(page):
+        await page.keyboard.press("Escape")
+        await asyncio.sleep(0.5)
+        loc = page.locator('span:has-text("tezze301")').first
+        if await loc.count() > 0:
+            await loc.click()
+        else:
+            await page.mouse.click(130, 340)
+        await asyncio.sleep(3.0)
+        return page.url
+
+    future = asyncio.run_coroutine_threadsafe(_do(_page_ref), _loop_ref)
+    url = await asyncio.wrap_future(future)
+    future_msgs = asyncio.run_coroutine_threadsafe(get_recent_history(_page_ref, limit=15), _loop_ref)
+    msgs = await asyncio.wrap_future(future_msgs)
+    return {"status": "ok", "url": url, "messages": msgs}
+
+@app.post("/api/watcher/open_chat")
+async def watcher_open_chat(payload: dict):
+    from .instagram_watcher import _page_ref, _loop_ref, get_recent_history
+    if _page_ref is None or _loop_ref is None:
+        return {"error": "no active page"}
+    name = payload.get("name", "Arnav P")
+    import asyncio
+
+    async def _click_it(page, n):
+        loc = page.locator(f'span:has-text("{n}")').first
+        if await loc.count() > 0:
+            await loc.click()
+            await asyncio.sleep(2.0)
+            return page.url
+        div_loc = page.locator(f'div[role="button"]:has-text("{n}")').first
+        if await div_loc.count() > 0:
+            await div_loc.click()
+            await asyncio.sleep(2.0)
+            return page.url
+        return None
+
+    future = asyncio.run_coroutine_threadsafe(_click_it(_page_ref, name), _loop_ref)
+    url = await asyncio.wrap_future(future)
+    await asyncio.sleep(2.5)
+    future_msgs = asyncio.run_coroutine_threadsafe(get_recent_history(_page_ref, limit=15), _loop_ref)
+    msgs = await asyncio.wrap_future(future_msgs)
+    return {"url": url, "messages": msgs}
+
 @app.post("/api/watcher/send")
 async def send_watcher_reply(payload: dict):
     text = payload.get("text", "")

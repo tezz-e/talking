@@ -848,16 +848,9 @@ function createMessageElement(msg, { animate = false } = {}) {
   if (isUnsent) bubbleClasses += ' bubble-unsent';
 
   const unsentTag = isUnsent ? '<div class="unsent-indicator mono">[UNSENT BY SENDER]</div>' : '';
+  const bubbleInner = unsentTag ? `${unsentTag}${rendered.html}` : rendered.html;
 
-  row.innerHTML = `
-    <div class="${bubbleClasses}">
-      ${unsentTag}
-      ${rendered.html}
-    </div>
-    <div class="message-meta">
-      <span>${senderName}</span> · <span>${relativeTime(msg.timestamp)}</span>
-    </div>
-  `;
+  row.innerHTML = `<div class="${bubbleClasses}">${bubbleInner}</div><div class="message-meta"><span>${senderName}</span> · <span>${relativeTime(msg.timestamp)}</span></div>`;
   return row;
 }
 

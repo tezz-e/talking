@@ -748,11 +748,17 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
         last_seen_history = list(recent_msgs) if recent_msgs else []
 
         consecutive_errors = 0
+        poll_count = 0
         while _state["running"]:
             try:
                 await dismiss_popups(page)
                 recent_msgs = await get_recent_history(page, limit=20)
                 consecutive_errors = 0
+                poll_count += 1
+
+                if poll_count % 5 == 0:
+                    tail_summary = [f"{m.get('role')}: {m.get('content')[:30]}" for m in (recent_msgs or [])[-3:]]
+                    logger.info(f"Poll #{poll_count} — {len(recent_msgs or [])} msgs in DOM. Tail: {tail_summary}")
 
                 if recent_msgs:
                     last_sigs = [(m.get("role", ""), m.get("content", "").strip()) for m in last_seen_history]
