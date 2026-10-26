@@ -2364,5 +2364,8 @@ async function init() {
 // Expose helpers for external controllers and testing
 window.showDraft = showDraft;
 window.appendMessage = appendMessage;
+window._talkingApi = api;
+window._talkingState = state;
+window._talkingRenderMessages = renderMessages;
 
 document.addEventListener('DOMContentLoaded', init);
