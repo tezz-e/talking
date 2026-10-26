@@ -9,6 +9,7 @@ Posts new messages to the Talking backend, which generates AI replies.
 import asyncio
 import json
 import logging
+import os
 import random
 from pathlib import Path
 from typing import Optional
@@ -500,15 +501,23 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
         return
 
     async with async_playwright() as pw:
-        ctx = await pw.chromium.launch_persistent_context(
-            user_data_dir=str(SESSION_DIR / "chrome_data"),
-            headless=False,
-            viewport={"width": 1280, "height": 900},
-            args=["--disable-blink-features=AutomationControlled"],
-        )
+        launch_kwargs = {
+            "user_data_dir": str(SESSION_DIR / "chrome_data"),
+            "headless": False,
+            "viewport": {"width": 1280, "height": 900},
+            "args": ["--disable-blink-features=AutomationControlled"],
+        }
+        try:
+            ctx = await pw.chromium.launch_persistent_context(channel="chrome", **launch_kwargs)
+        except Exception:
+            ctx = await pw.chromium.launch_persistent_context(**launch_kwargs)
 
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         _page_ref = page
+        try:
+            await page.bring_to_front()
+        except Exception:
+            pass
 
         if not await ensure_logged_in(page, ctx):
             await ctx.close()

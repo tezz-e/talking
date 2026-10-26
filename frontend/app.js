@@ -1757,6 +1757,23 @@ function bindEvents() {
         }
         updateNoteButtonIndicator();
       }
+
+      // Reveal or hide AUTO-SEND in Watcher card based on Pro Mode
+      if (dom.watcherFullAutoBtn) {
+        if (state.proMode) {
+          dom.watcherFullAutoBtn.classList.remove('hidden');
+        } else {
+          dom.watcherFullAutoBtn.classList.add('hidden');
+          if (state.watcherFullAuto) {
+            state.watcherFullAuto = false;
+            dom.watcherFullAutoBtn.classList.remove('active');
+            dom.watcherFullAutoBtn.setAttribute('aria-pressed', 'false');
+            const autoStatusEl = dom.watcherFullAutoBtn.querySelector('.switch-status');
+            if (autoStatusEl) autoStatusEl.textContent = 'OFF';
+            else dom.watcherFullAutoBtn.textContent = 'AUTO-SEND [OFF]';
+          }
+        }
+      }
     });
   }
 
