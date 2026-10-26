@@ -162,6 +162,12 @@ class SyncHistoryRequest(BaseModel):
     messages: List[Dict[str, Any]] = Field(default_factory=list, description="List of message objects")
 
 
+class UnsendRequest(BaseModel):
+    """Request to flag an unsent/deleted message from Instagram watcher."""
+    contact_id: str = Field(..., description="Target contact ID")
+    content: str = Field(..., description="Content of the unsent message")
+
+
 class WatcherStartRequest(BaseModel):
     """Request to start the Playwright Instagram DM watcher."""
     contact_id: str = Field(..., description="Target contact ID")

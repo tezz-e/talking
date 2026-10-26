@@ -66,11 +66,12 @@ class ContextAssembler:
 
         contact_dict = contact.model_dump()
 
-        # 2. Get last 15 messages
+        # 2. Get last 15 messages (excluding unsent/deleted messages)
         recent_msgs = self.db.get_recent_messages(contact_id, n=15)
         recent_history = [
             {"role": m.role, "content": m.content}
             for m in recent_msgs
+            if not (m.metadata and m.metadata.get("is_unsent"))
         ]
 
         # 3. Search vector store for relevant memories

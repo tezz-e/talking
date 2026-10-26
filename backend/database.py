@@ -348,6 +348,32 @@ class DatabaseManager:
             cur = conn.execute(f"UPDATE messages SET {', '.join(clauses)} WHERE id = ?", params)
             return cur.rowcount > 0
 
+    def mark_message_unsent(self, contact_id: str, content: str) -> bool:
+        """Mark the most recent matching message for a contact as unsent."""
+        target_norm = "".join(c for c in content.lower() if c.isalnum())
+        with self._connection() as conn:
+            cur = conn.execute(
+                """
+                SELECT id, content, metadata FROM messages
+                WHERE contact_id = ? AND role = 'them'
+                ORDER BY timestamp DESC, id DESC
+                LIMIT 15
+                """,
+                (contact_id,),
+            )
+            rows = cur.fetchall()
+            for row in rows:
+                row_norm = "".join(c for c in row["content"].lower() if c.isalnum())
+                if row_norm == target_norm or (target_norm and (target_norm in row_norm or row_norm in target_norm)):
+                    meta = json.loads(row["metadata"] or "{}")
+                    meta["is_unsent"] = True
+                    conn.execute(
+                        "UPDATE messages SET metadata = ? WHERE id = ?",
+                        (json.dumps(meta), row["id"]),
+                    )
+                    return True
+            return False
+
     def get_recent_user_messages(
         self,
         contact_id: Optional[str] = None,

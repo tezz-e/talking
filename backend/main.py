@@ -17,7 +17,7 @@ from .models import (
     ContactCreate, ContactUpdate, GenerateRequest, GenerateResponse,
     ApproveRequest, IngestRequest, SteerRequest, SteerResponse, DraftVariant,
     Fact, FactCreate, CopilotDraftRequest, CopilotDraftResponse,
-    DescribeMediaRequest, SyncHistoryRequest, WatcherStartRequest
+    DescribeMediaRequest, SyncHistoryRequest, WatcherStartRequest, UnsendRequest
 )
 from .database import DatabaseManager
 from .memory import MemoryStore
@@ -593,6 +593,14 @@ def sync_instagram_history(req: SyncHistoryRequest):
         db.add_messages_batch(new_messages)
 
     return {"status": "synced", "count": len(new_messages)}
+
+@app.post("/api/instagram/unsend")
+def handle_instagram_unsend(req: UnsendRequest):
+    contact = db.get_contact(req.contact_id)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    marked = db.mark_message_unsent(req.contact_id, req.content)
+    return {"status": "marked" if marked else "not_found"}
 
 @app.post("/api/watcher/start")
 def start_instagram_watcher(req: WatcherStartRequest):

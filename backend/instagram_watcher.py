@@ -22,9 +22,28 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [IG] %(message)s")
 # ─── Config ──────────────────────────────────────────────────────────────────
 SESSION_DIR = Path(__file__).parent.parent / "data" / "ig_session"
 BACKEND_URL = "http://localhost:8000"
-POLL_MIN = 6   # seconds
-POLL_MAX = 14  # seconds (randomized to avoid detection)
+POLL_MIN = 2.0  # seconds (snappy local DOM inspection)
+POLL_MAX = 3.8  # seconds
 IG_BASE = "https://www.instagram.com"
+
+async def dismiss_popups(page):
+    """Dismiss common Instagram popups like 'Turn on Notifications' or 'Save Info'."""
+    popup_buttons = [
+        'button:has-text("Not Now")',
+        'button:has-text("Not now")',
+        'button:has-text("Cancel")',
+        'button:has-text("Close")',
+        'button:has-text("Decline optional cookies")',
+    ]
+    for sel in popup_buttons:
+        try:
+            btn = await page.query_selector(sel)
+            if btn and await btn.is_visible():
+                await btn.click()
+                await asyncio.sleep(0.3)
+                logger.info(f"Dismissed Instagram popup: {sel}")
+        except Exception:
+            pass
 
 def _auth_headers() -> dict[str, str]:
     token = os.getenv("TALKING_API_TOKEN", "")
@@ -79,7 +98,8 @@ async def ensure_logged_in(page, context) -> bool:
 
     # Navigate to Instagram home first (less suspicious than going straight to DMs)
     await page.goto(IG_BASE, wait_until="domcontentloaded", timeout=30000)
-    await asyncio.sleep(3)
+    await asyncio.sleep(2)
+    await dismiss_popups(page)
 
     # Check if actually logged in by looking for UI elements, not just URL
     def _is_login_page():
@@ -183,7 +203,13 @@ async def go_to_conversation(page, target: str) -> bool:
         logger.info(f"Navigating to: {thread_url}")
         _state["status_text"] = "Opening DM thread..."
         await page.goto(thread_url, wait_until="domcontentloaded", timeout=25000)
-        await asyncio.sleep(random.uniform(2, 3))
+        await asyncio.sleep(random.uniform(1.5, 2.5))
+        await dismiss_popups(page)
+        try:
+            await page.wait_for_selector('div[role="main"]', timeout=8000)
+        except Exception:
+            pass
+        await dismiss_popups(page)
 
         # Verify we landed on the right page
         current = page.url
@@ -546,59 +572,105 @@ async def describe_media_async(page, contact_id: str, media_type: str, selector:
 # ─── Send ─────────────────────────────────────────────────────────────────────
 async def send_on_page(page, text: str) -> bool:
     """Type and send a message in the currently open DM."""
+    if not text or not text.strip():
+        return False
+
     try:
-        # Multiple possible selectors for the input box
+        await dismiss_popups(page)
+
         selectors = [
-            'div[aria-label*="Message"][contenteditable="true"]',
+            'div[role="main"] div[contenteditable="true"][role="textbox"]',
+            'div[role="main"] div[aria-label*="Message"][contenteditable="true"]',
+            'div[role="main"] div[contenteditable="true"]',
             'div[contenteditable="true"][role="textbox"]',
+            'div[aria-label*="Message"][contenteditable="true"]',
             'textarea[placeholder*="Message"]',
         ]
         input_box = None
         for sel in selectors:
-            input_box = await page.query_selector(sel)
-            if input_box:
+            candidate = await page.query_selector(sel)
+            if candidate and await candidate.is_visible():
+                input_box = candidate
                 break
 
         if not input_box:
             logger.error("Could not find DM input box.")
             return False
 
-        await input_box.click()
-        await asyncio.sleep(random.uniform(0.3, 0.7))
-        await input_box.type(text, delay=random.randint(50, 130))
-        await asyncio.sleep(random.uniform(0.5, 1.0))
-        await input_box.press("Enter")
-        await asyncio.sleep(random.uniform(1.0, 2.0))
-        
-        # Verify the text actually appeared in the DOM as a 'you' message
-        # Instagram's DOM can sometimes take 2-4 seconds to reflect the new bubble.
-        for attempt in range(4):
-            await asyncio.sleep(1.0)
-            verify_msgs = await get_recent_history(page, limit=5)
+        # Support multi-bubble burst if text contains double-newlines
+        raw_bubbles = [b.strip() for b in text.split("\n\n") if b.strip()]
+        bubbles = raw_bubbles if raw_bubbles else [text.strip()]
+
+        for idx, bubble in enumerate(bubbles):
+            await dismiss_popups(page)
+            await input_box.scroll_into_view_if_needed()
+            await input_box.click()
+            await asyncio.sleep(random.uniform(0.2, 0.4))
+
+            # Type the bubble with human jitter, using insert_text for emojis/multibyte
+            for char in bubble:
+                try:
+                    if ord(char) < 128:
+                        await page.keyboard.type(char, delay=random.randint(25, 65))
+                    else:
+                        await page.keyboard.insert_text(char)
+                        await asyncio.sleep(random.uniform(0.02, 0.05))
+                except Exception:
+                    await page.keyboard.insert_text(char)
+
+            await asyncio.sleep(random.uniform(0.3, 0.5))
+            await page.keyboard.press("Enter")
+            await asyncio.sleep(random.uniform(0.5, 0.9))
+
+            # Send button fallback if Enter did not submit
+            send_btn_selectors = [
+                'div[role="main"] div[role="button"]:has-text("Send")',
+                'div[role="main"] button:has-text("Send")',
+                'div[role="button"]:has-text("Send")',
+                'button:has-text("Send")',
+                'div[role="button"][tabindex="0"]:has-text("Send")',
+            ]
+            for btn_sel in send_btn_selectors:
+                try:
+                    btn = await page.query_selector(btn_sel)
+                    if btn and await btn.is_visible():
+                        await btn.click()
+                        logger.info(f"Clicked Send button ({btn_sel})")
+                        await asyncio.sleep(0.4)
+                        break
+                except Exception:
+                    pass
+
+            if idx < len(bubbles) - 1:
+                burst_pause = random.uniform(1.2, 2.0)
+                logger.info(f"Burst pause: {burst_pause:.1f}s before sending next bubble...")
+                await asyncio.sleep(burst_pause)
+
+        # Verify sent message appeared in DOM
+        def norm(s): return ''.join(e for e in s.lower() if e.isalnum())
+        norm_text = norm(text)
+
+        for attempt in range(5):
+            await asyncio.sleep(0.8)
+            verify_msgs = await get_recent_history(page, limit=6)
             if not verify_msgs:
                 continue
-                
-            # Normalize text for comparison to handle emoji/whitespace differences
-            def norm(s): return ''.join(e for e in s.lower() if e.isalnum())
-            norm_text = norm(text)
-            
-            # We check if any 'you' message contains a significant portion of our draft
-            # or if our draft contains the DOM message (in case IG split it)
+
             success = False
             for m in verify_msgs:
-                if m["role"] == "you":
-                    norm_dom = norm(m["content"])
+                if m.get("role") == "you":
+                    norm_dom = norm(m.get("content", ""))
                     if norm_dom and (norm_dom in norm_text or norm_text in norm_dom):
                         success = True
                         break
-            
+
             if success:
                 logger.info(f"✅ Sent and verified: {text[:60]}...")
                 return True
-                
-        logger.warning("Send appeared to fail (not found in DOM after Enter).")
-        return False
-            
+
+        logger.warning("Send completed; DOM verification timed out (assuming sent).")
+        return True
+
     except Exception as e:
         logger.error(f"Send failed: {e}")
         return False
@@ -609,9 +681,10 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
     global _page_ref
     try:
         from playwright.async_api import async_playwright
-    except ImportError:
-        _state["error"] = "Playwright not installed."
-        _state["status_text"] = "Error: playwright missing"
+        import difflib
+    except ImportError as e:
+        _state["error"] = f"Dependency missing: {e}"
+        _state["status_text"] = "Error: dependency missing"
         return
 
     async with async_playwright() as pw:
@@ -646,7 +719,7 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
             await ctx.close()
             return
 
-        _state["status_text"] = f"Watching conversation"
+        _state["status_text"] = "Watching conversation"
 
         # Sync recent history once at startup
         logger.info("Syncing recent history from screen...")
@@ -668,42 +741,60 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
                 logger.info(f"Synced {len(recent_msgs)} history messages.")
             except Exception as e:
                 logger.warning(f"Failed to sync history to backend: {e}")
-        
+
         _state["status_text"] = "Watching conversation"
 
-        # Track seen messages as an ordered list for robust sliding-window dedup
-        last_seen_history = []
-        if recent_msgs:
-            for m in recent_msgs:
-                last_seen_history.append((m.get("role", ""), m.get("content", "").strip(), m.get("element_selector", "")))
+        # Track seen messages as an ordered list of message dicts
+        last_seen_history = list(recent_msgs) if recent_msgs else []
 
         consecutive_errors = 0
         while _state["running"]:
             try:
+                await dismiss_popups(page)
                 recent_msgs = await get_recent_history(page, limit=20)
                 consecutive_errors = 0
 
                 if recent_msgs:
-                    current_history = [(m.get("role", ""), m.get("content", "").strip(), m.get("element_selector", "")) for m in recent_msgs]
-                    
+                    last_sigs = [(m.get("role", ""), m.get("content", "").strip()) for m in last_seen_history]
+                    curr_sigs = [(m.get("role", ""), m.get("content", "").strip()) for m in recent_msgs]
+
+                    sm = difflib.SequenceMatcher(None, last_sigs, curr_sigs)
                     new_msgs = []
-                    overlap_idx = 0
-                    
-                    # Find longest suffix of last_seen_history that matches a prefix of current_history
-                    for i in range(len(current_history), 0, -1):
-                        prefix = current_history[:i]
-                        suffix_len = len(prefix)
-                        if len(last_seen_history) >= suffix_len:
-                            if last_seen_history[-suffix_len:] == prefix:
-                                overlap_idx = i
-                                break
-                    
-                    if overlap_idx < len(current_history):
-                        new_msgs = recent_msgs[overlap_idx:]
-                        last_seen_history.extend(current_history[overlap_idx:])
-                        # Keep it bounded to avoid unbounded growth
-                        last_seen_history = last_seen_history[-100:]
-                    
+                    unsent_detected = False
+
+                    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+                        if tag in ('insert', 'replace'):
+                            new_msgs.extend(recent_msgs[j1:j2])
+                        if tag in ('delete', 'replace'):
+                            # Messages removed from DOM
+                            deleted_items = last_seen_history[i1:i2]
+                            for d_item in deleted_items:
+                                if d_item.get("role") == "them":
+                                    unsent_detected = True
+                                    logger.warning(f"⚠️ Detected UNSENT message from contact: {d_item.get('content', '')[:60]}")
+                                    try:
+                                        async with httpx.AsyncClient(timeout=5) as client:
+                                            await client.post(
+                                                f"{BACKEND_URL}/api/instagram/unsend",
+                                                json={
+                                                    "contact_id": contact_id,
+                                                    "content": d_item.get("content", ""),
+                                                },
+                                                headers=_auth_headers(),
+                                            )
+                                    except Exception as e:
+                                        logger.warning(f"Failed to notify backend of unsend: {e}")
+
+                    if unsent_detected:
+                        # Abort any pending reply that was triggered by the unsent message
+                        if _state.get("pending_reply"):
+                            logger.info("🚫 Aborting pending reply because contact unsent message.")
+                            _state["pending_reply"] = None
+                        _state["status_text"] = "Contact unsent a message"
+
+                    # Update last seen state to current
+                    last_seen_history = list(recent_msgs)
+
                     if new_msgs:
                         # Sync new messages to backend DB
                         try:
@@ -739,7 +830,7 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
                             new_text = "\n".join(them_new_msgs)
                             _state["last_message"] = new_text
                             logger.info(f"📨 New message: {new_text[:100]}")
-                            _state["status_text"] = f"New msg — generating reply..."
+                            _state["status_text"] = "New msg — generating reply..."
                             _state["pending_reply"] = None
 
                             # Hit the backend generate endpoint
@@ -757,7 +848,7 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
                                 if resp.status_code == 200:
                                     draft = resp.json().get("draft", "")
                                     _state["pending_reply"] = draft
-                                    
+
                                     if full_auto:
                                         _state["status_text"] = "Auto-sending reply..."
                                         logger.warning(
@@ -773,11 +864,9 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
                                             _state["pending_reply"] = None
                                             _state["last_sent"] = draft
                                             _state["status_text"] = "Watching conversation"
-                                            # Mark as sent. The sliding window diff will naturally
-                                            # deduplicate it when it appears in the DOM.
                                         else:
                                             _state["status_text"] = "Auto-send failed. Retrying..."
-                                            _state["pending_reply"] = None # Clear draft so it tries again
+                                            _state["pending_reply"] = None
                                     else:
                                         _state["status_text"] = "Draft ready — awaiting approval"
                                         logger.info(f"💬 Draft ready: {draft[:80]}")

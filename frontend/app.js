@@ -250,6 +250,13 @@ const api = {
 
   getWatcherStatus() {
     return this._fetch('/api/watcher/status');
+  },
+
+  sendWatcherReply(text) {
+    return this._fetch('/api/watcher/send', {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    });
   }
 };
 
@@ -833,13 +840,18 @@ function createMessageElement(msg, { animate = false } = {}) {
   const senderName = isOutgoing ? 'YOU' : (state.currentContact?.name?.toUpperCase() || 'THEM');
   const rendered = renderMessageBubbleContent(msg);
 
+  const isUnsent = Boolean(msg.metadata && msg.metadata.is_unsent);
   let bubbleClasses = 'message-bubble';
   if (wasEdited) bubbleClasses += ' was-edited';
   if (rendered.isEmoji) bubbleClasses += ' bubble-emoji-only';
   if (rendered.isMedia) bubbleClasses += ' bubble-has-media';
+  if (isUnsent) bubbleClasses += ' bubble-unsent';
+
+  const unsentTag = isUnsent ? '<div class="unsent-indicator mono">[UNSENT BY SENDER]</div>' : '';
 
   row.innerHTML = `
     <div class="${bubbleClasses}">
+      ${unsentTag}
       ${rendered.html}
     </div>
     <div class="message-meta">
@@ -1472,7 +1484,7 @@ async function handleApprove() {
     return;
   }
 
-  showToast('APPROVED & COPIED', 'success');
+  showToast(state.watcherRunning ? 'APPROVED — SENDING VIA PLAYWRIGHT...' : 'APPROVED & COPIED', 'success');
 
   // Solidify the dashed draft bubbles into solid ink bubbles by adding to message history
   appendMessage({
@@ -1484,6 +1496,21 @@ async function handleApprove() {
 
   // Clear draft desk back to empty state row
   resetDraftState();
+
+  // If Playwright watcher is running, dispatch directly into Instagram DM!
+  if (state.watcherRunning) {
+    try {
+      const sendRes = await api.sendWatcherReply(finalMessage);
+      if (sendRes?.status === 'sent') {
+        showToast('SENT TO INSTAGRAM VIA PLAYWRIGHT', 'success');
+      } else {
+        showToast('DISPATCH FAILED — CHECK PLAYWRIGHT WINDOW', 'error');
+      }
+    } catch (err) {
+      console.error('Playwright send error:', err);
+      showToast(`PLAYWRIGHT ERROR: ${err.message}`, 'error');
+    }
+  }
 
   // Save approval to backend
   try {
@@ -1847,6 +1874,18 @@ async function updateWatcherUI(ws) {
 
   if (dom.watcherEngineStatus) {
     dom.watcherEngineStatus.textContent = ws?.status_text || (isRunning ? 'ACTIVE' : 'CHROME PERSISTENT');
+  }
+
+  // Update Approve button title and label based on Watcher status
+  if (dom.approveBtn) {
+    const span = dom.approveBtn.querySelector('span');
+    if (isRunning) {
+      dom.approveBtn.setAttribute('title', 'Approve draft and dispatch directly to Instagram via Playwright');
+      if (span) span.textContent = 'APPROVE & DISPATCH';
+    } else {
+      dom.approveBtn.setAttribute('title', 'Approve & Copy draft to clipboard');
+      if (span) span.textContent = 'APPROVE & COPY';
+    }
   }
 
   dom.watcherStatusBadge.className = 'watcher-status-tag mono';
