@@ -413,16 +413,14 @@ class GeminiLLM:
             return []
 
         def _call():
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.EMBEDDING_MODEL}:batchEmbedContents?key={self.api_key}"
-            requests_list = [
-                {"model": f"models/{self.EMBEDDING_MODEL}", "content": {"parts": [{"text": t}]}}
+            contents = [
+                {"parts": [{"text": t}]}
                 for t in texts
             ]
-            response = requests.post(url, json={"requests": requests_list}, timeout=60)
-            if response.status_code == 429:
-                raise Exception(f"429 RESOURCE_EXHAUSTED: {response.text[:200]}")
-            response.raise_for_status()
-            data = response.json()
-            return [list(e["values"]) for e in data.get("embeddings", [])]
+            result = self.client.models.embed_content(
+                model=self.EMBEDDING_MODEL,
+                contents=contents,
+            )
+            return [list(e.values) for e in result.embeddings]
 
         return self._retry(_call)

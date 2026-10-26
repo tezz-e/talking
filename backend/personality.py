@@ -1,8 +1,8 @@
 """
-Talking â€” Personality Engine
+Talking — Personality Engine
 
-Loads the user's SOUL.md and STYLE.md files, then assembles
-the complete system prompt for Gemini with contact context,
+Loads the user's SOUL.md, STYLE.md, and optional domain knowledge (e.g. VIT_VELLORE.md),
+then assembles the complete system prompt for Gemini with contact context,
 retrieved memories, and mood instructions.
 """
 
@@ -12,7 +12,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# â”€â”€â”€ Default data directory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─── Default data directory ──────────────────────────────────────────────────
 
 _DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
@@ -28,14 +28,16 @@ class PersonalityEngine:
         self.data_dir = Path(data_dir) if data_dir else _DEFAULT_DATA_DIR
         self.soul: str = ""
         self.style: str = ""
+        self.vit_context: str = ""
         self._loaded = False
 
-    # â”€â”€ Loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Loading ───────────────────────────────────────────────────────────
 
     def load(self) -> None:
-        """Read SOUL.md and STYLE.md from the data directory."""
+        """Read SOUL.md, STYLE.md, and VIT_VELLORE.md from the data directory."""
         soul_path = self.data_dir / "SOUL.md"
         style_path = self.data_dir / "STYLE.md"
+        vit_path = self.data_dir / "VIT_VELLORE.md"
 
         if soul_path.exists():
             self.soul = soul_path.read_text(encoding="utf-8").strip()
@@ -44,7 +46,7 @@ class PersonalityEngine:
             self.soul = (self.data_dir / "SOUL.template.md").read_text(encoding="utf-8").strip()
             logger.info("Loaded SOUL.template.md (%d chars)", len(self.soul))
         else:
-            logger.warning("SOUL.md not found at %s â€” using empty identity.", soul_path)
+            logger.warning("SOUL.md not found at %s — using empty identity.", soul_path)
             self.soul = "You are a friendly, authentic person. Be yourself."
 
         if style_path.exists():
@@ -54,8 +56,14 @@ class PersonalityEngine:
             self.style = (self.data_dir / "STYLE.template.md").read_text(encoding="utf-8").strip()
             logger.info("Loaded STYLE.template.md (%d chars)", len(self.style))
         else:
-            logger.warning("STYLE.md not found at %s â€” using default style.", style_path)
+            logger.warning("STYLE.md not found at %s — using default style.", style_path)
             self.style = "Text casually, like a real person. Keep it natural."
+
+        if vit_path.exists():
+            self.vit_context = vit_path.read_text(encoding="utf-8").strip()
+            logger.info("Loaded VIT_VELLORE.md (%d chars)", len(self.vit_context))
+        else:
+            self.vit_context = ""
 
         self._loaded = True
 
@@ -64,7 +72,7 @@ class PersonalityEngine:
         if not self._loaded:
             self.load()
 
-    # â”€â”€ System Prompt Builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── System Prompt Builder ─────────────────────────────────────────────
 
     def build_system_prompt(
         self,
@@ -97,17 +105,17 @@ class PersonalityEngine:
 
         sections = []
 
-        # â”€â”€ Core Identity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Core Identity ─────────────────────────────────────────────
         sections.append(
             f"CORE IDENTITY:\n{self.soul}"
         )
 
-        # â”€â”€ Texting Style â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Texting Style ─────────────────────────────────────────────
         sections.append(
-            f"TEXTING STYLE â€” FOLLOW THESE RULES STRICTLY:\n{self.style}"
+            f"TEXTING STYLE — FOLLOW THESE RULES STRICTLY:\n{self.style}"
         )
 
-        # â”€â”€ Contact Context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Contact Context ───────────────────────────────────────────
         interests = ", ".join(contact.get("their_interests", [])) or "unknown"
         jokes = ", ".join(contact.get("inside_jokes", [])) or "none yet"
         notes = contact.get("notes", "") or "none"
@@ -133,6 +141,23 @@ class PersonalityEngine:
             contact_lines.append(f"TACTICAL STRATEGY DIRECTIVE: {strategy_note}")
 
         sections.append("CURRENT CONVERSATION:\n" + "\n".join(contact_lines))
+
+        # ── Local Campus Knowledge (VIT Vellore) ──────────────────────
+        if self.vit_context:
+            combined_context = " ".join([
+                str(contact.get("name", "")),
+                str(contact.get("how_you_know", "")),
+                str(contact.get("notes", "")),
+                str(contact.get("style_notes", "")),
+                " ".join(str(m.get("content", "")) for m in (recent_history or [])),
+            ]).lower()
+            vit_keywords = (
+                "vit", "vellore", "sjt", "ffcs", "vtop", "cat 1", "cat 2",
+                "cat1", "cat2", "fat", "gravitas", "riviera", "hostel",
+                "fc maggi", "gdn", "prp", "tt", "darling canteen"
+            )
+            if any(k in combined_context for k in vit_keywords):
+                sections.append(f"LOCAL CAMPUS KNOWLEDGE (VIT VELLORE):\n{self.vit_context}")
 
         sections.append(
             "RESPONSE STRATEGY:\n"
@@ -180,7 +205,7 @@ class PersonalityEngine:
                 "Do not explain it."
             )
 
-        # â”€â”€ Retrieved Memories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Retrieved Memories ─────────────────────────────────────────
         if retrieved_memories:
             mem_text = "\n---\n".join(retrieved_memories)
             sections.append(
@@ -193,7 +218,7 @@ class PersonalityEngine:
                 f"{mem_text}"
             )
 
-        # â”€â”€ Recent Message History â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Recent Message History ─────────────────────────────────────
         if recent_history:
             history_lines = []
             for msg in recent_history:
@@ -203,7 +228,7 @@ class PersonalityEngine:
                 "RECENT MESSAGE HISTORY:\n" + "\n".join(history_lines)
             )
 
-        # â”€â”€ Few-Shot Examples â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Few-Shot Examples ──────────────────────────────────────────
         if few_shot_examples:
             example_lines = []
             for ex in few_shot_examples:
@@ -213,11 +238,11 @@ class PersonalityEngine:
                 "EXAMPLE EXCHANGES (match this style exactly):\n" + "\n".join(example_lines)
             )
 
-        # â”€â”€ Mood â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Mood ───────────────────────────────────────────────────────
         mood_instructions = self.get_mood_instructions(mood)
-        sections.append(f"MOOD: {mood} â€” {mood_instructions}")
+        sections.append(f"MOOD: {mood} — {mood_instructions}")
 
-        # â”€â”€ Rules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── Rules ──────────────────────────────────────────────────────
         rules = [
             "RULES:",
             "1. Reply as a single text message (or a few short ones if that's your style)",
