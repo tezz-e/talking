@@ -178,12 +178,20 @@ class SecurityMiddlewareTests(unittest.TestCase):
         res_ip = self.client.get("/api/watcher/status", headers={"Host": "127.0.0.1:8000"})
         self.assertEqual(res_ip.status_code, 200)
 
-    # ── 7. Strict Production Allowed Origins ──
+    # ── 7. Strict Production Allowed Origins (Local + Copilot Host Platforms) ──
     def test_default_production_allowed_origins(self):
         from backend.main import get_allowed_origins
         with patch.dict(os.environ, {"ADDITIONAL_ALLOWED_ORIGINS": ""}, clear=False):
             origins = get_allowed_origins()
-            self.assertEqual(sorted(origins), sorted(["http://localhost:8000", "http://127.0.0.1:8000"]))
+            self.assertEqual(
+                sorted(origins),
+                sorted([
+                    "http://localhost:8000",
+                    "http://127.0.0.1:8000",
+                    "https://web.whatsapp.com",
+                    "https://www.instagram.com",
+                ]),
+            )
 
     def test_additional_allowed_origins_env(self):
         from backend.main import get_allowed_origins
@@ -191,6 +199,30 @@ class SecurityMiddlewareTests(unittest.TestCase):
             origins = get_allowed_origins()
             self.assertIn("http://localhost:9999", origins)
             self.assertIn("http://127.0.0.1:9999", origins)
+
+    def test_copilot_host_origins_allowed_for_auth_token(self):
+        for origin in ["https://web.whatsapp.com", "https://www.instagram.com"]:
+            res = self.client.get("/api/auth/token", headers={"Origin": origin, "Host": "localhost:8000"})
+            self.assertEqual(res.status_code, 200)
+            self.assertIn("token", res.json())
+
+    def test_database_update_contact_whitelisting(self):
+        from backend.database import DatabaseManager
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_db = DatabaseManager(Path(tmpdir) / "test.db")
+            from backend.models import Contact, RelationshipStage
+            c = Contact(name="Test User", relationship_stage=RelationshipStage.FRIEND)
+            test_db.add_contact(c)
+            # Try updating with an invalid/unwhitelisted column that would otherwise break SQL
+            updated = test_db.update_contact(c.id, {
+                "convo_goal": "get_dinner",
+                "non_existent_column": "should_be_ignored",
+                "drop_table;--": "malicious",
+            })
+            self.assertIsNotNone(updated)
+            self.assertEqual(updated.convo_goal, "get_dinner")
 
 if __name__ == "__main__":
     unittest.main()

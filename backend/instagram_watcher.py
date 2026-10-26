@@ -25,6 +25,16 @@ POLL_MIN = 6   # seconds
 POLL_MAX = 14  # seconds (randomized to avoid detection)
 IG_BASE = "https://www.instagram.com"
 
+def _auth_headers() -> dict[str, str]:
+    token = os.getenv("TALKING_API_TOKEN", "")
+    if not token:
+        try:
+            from backend.main import SERVER_API_TOKEN
+            token = SERVER_API_TOKEN
+        except Exception:
+            token = ""
+    return {"X-Talking-Token": token} if token else {}
+
 # ─── Shared state (read by backend API endpoints) ─────────────────────────────
 _state = {
     "running": False,
@@ -402,11 +412,15 @@ async def describe_media_async(page, contact_id: str, media_type: str, selector:
         image_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
         
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(f"{BACKEND_URL}/api/instagram/describe_media", json={
-                "contact_id": contact_id,
-                "media_type": media_type,
-                "image_base64": image_b64
-            })
+            resp = await client.post(
+                f"{BACKEND_URL}/api/instagram/describe_media",
+                json={
+                    "contact_id": contact_id,
+                    "media_type": media_type,
+                    "image_base64": image_b64,
+                },
+                headers=_auth_headers(),
+            )
             if resp.status_code == 200:
                 logger.info(f"📸 Media described: {resp.json().get('description')}")
             else:
@@ -518,10 +532,14 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
         if recent_msgs:
             try:
                 async with httpx.AsyncClient(timeout=10) as client:
-                    await client.post(f"{BACKEND_URL}/api/instagram/sync_history", json={
-                        "contact_id": contact_id,
-                        "messages": recent_msgs
-                    })
+                    await client.post(
+                        f"{BACKEND_URL}/api/instagram/sync_history",
+                        json={
+                            "contact_id": contact_id,
+                            "messages": recent_msgs,
+                        },
+                        headers=_auth_headers(),
+                    )
                 import time
                 _state["history_synced_at"] = time.time()
                 logger.info(f"Synced {len(recent_msgs)} history messages.")
@@ -567,10 +585,14 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
                         # Sync new messages to backend DB
                         try:
                             async with httpx.AsyncClient(timeout=10) as client:
-                                await client.post(f"{BACKEND_URL}/api/instagram/sync_history", json={
-                                    "contact_id": contact_id,
-                                    "messages": new_msgs
-                                })
+                                await client.post(
+                                    f"{BACKEND_URL}/api/instagram/sync_history",
+                                    json={
+                                        "contact_id": contact_id,
+                                        "messages": new_msgs,
+                                    },
+                                    headers=_auth_headers(),
+                                )
                             import time
                             _state["history_synced_at"] = time.time()
                         except Exception as e:
@@ -599,12 +621,16 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
 
                             # Hit the backend generate endpoint
                             async with httpx.AsyncClient(timeout=60.0) as client:
-                                resp = await client.post(f"{BACKEND_URL}/api/message", json={
-                                    "contact_id": contact_id,
-                                    "incoming_message": new_text,
-                                    "mood": mood,
-                                    "pro_mode": True,
-                                })
+                                resp = await client.post(
+                                    f"{BACKEND_URL}/api/message",
+                                    json={
+                                        "contact_id": contact_id,
+                                        "incoming_message": new_text,
+                                        "mood": mood,
+                                        "pro_mode": True,
+                                    },
+                                    headers=_auth_headers(),
+                                )
                                 if resp.status_code == 200:
                                     draft = resp.json().get("draft", "")
                                     _state["pending_reply"] = draft

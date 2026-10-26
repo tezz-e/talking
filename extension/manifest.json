@@ -22,9 +22,6 @@
         "https://web.whatsapp.com/*",
         "https://www.instagram.com/direct/*"
       ],
-      "css": [
-        "content.css"
-      ],
       "js": [
         "content.js"
       ],

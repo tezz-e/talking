@@ -24,6 +24,21 @@ _DEFAULT_DB_DIR = Path(__file__).resolve().parent.parent / "data" / "db"
 _DEFAULT_DB_PATH = _DEFAULT_DB_DIR / "talking.db"
 
 
+_ALLOWED_CONTACT_COLUMNS = frozenset({
+    "name",
+    "relationship_stage",
+    "how_you_know",
+    "their_interests",
+    "inside_jokes",
+    "style_notes",
+    "notes",
+    "convo_goal",
+    "my_impression",
+    "strategy_note",
+    "updated_at",
+})
+
+
 class DatabaseManager:
     """
     Thread-safe SQLite database manager for the Talking backend.
@@ -139,18 +154,6 @@ class DatabaseManager:
             if "strategy_note" not in cols:
                 conn.execute("ALTER TABLE contacts ADD COLUMN strategy_note TEXT DEFAULT ''")
 
-            # Clean up duplicate adjacent messages created by prior approval bugs
-            conn.execute(
-                """
-                DELETE FROM messages
-                WHERE id NOT IN (
-                    SELECT MIN(id)
-                    FROM messages
-                    GROUP BY contact_id, role, content, strftime('%Y-%m-%d %H:%M', timestamp)
-                )
-                """
-            )
-
     # ── Row → Model helpers ───────────────────────────────────────────────
 
     @staticmethod
@@ -227,6 +230,8 @@ class DatabaseManager:
         `updates` should be a dict of field→value. List fields will be
         JSON-serialized automatically.
         """
+        # Whitelist columns to guard against unknown LLM output keys and SQL injection
+        updates = {k: v for k, v in updates.items() if k in _ALLOWED_CONTACT_COLUMNS}
         if not updates:
             return self.get_contact(contact_id)
 
@@ -383,10 +388,10 @@ class DatabaseManager:
                 SELECT * FROM (
                     SELECT * FROM messages
                     WHERE contact_id = ?
-                    ORDER BY timestamp DESC
+                    ORDER BY timestamp DESC, id DESC
                     LIMIT ?
                 ) sub
-                ORDER BY timestamp ASC
+                ORDER BY timestamp ASC, id ASC
                 """,
                 (contact_id, n),
             ).fetchall()

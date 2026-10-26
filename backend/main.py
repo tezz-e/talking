@@ -38,6 +38,8 @@ SERVER_API_TOKEN = os.getenv("TALKING_API_TOKEN") or secrets.token_hex(32)
 DEFAULT_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "https://web.whatsapp.com",
+    "https://www.instagram.com",
 ]
 
 def get_allowed_origins() -> list[str]:

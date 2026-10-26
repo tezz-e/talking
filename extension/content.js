@@ -9,6 +9,25 @@
   'use strict';
 
   const BACKEND_BASE = 'http://localhost:8000';
+  let cachedApiToken = null;
+  async function getApiHeaders() {
+    if (!cachedApiToken) {
+      try {
+        const r = await fetch(`${BACKEND_BASE}/api/auth/token`);
+        if (r.ok) {
+          const data = await r.json();
+          cachedApiToken = data.token;
+        }
+      } catch (e) {
+        console.warn('[Talking Copilot] Failed to fetch auth token:', e);
+      }
+    }
+    return {
+      'Content-Type': 'application/json',
+      ...(cachedApiToken ? { 'X-Talking-Token': cachedApiToken } : {}),
+    };
+  }
+
   let activeContactId = null;
   let activeOriginalDraft = null;
   let activeVariants = [];
@@ -1066,12 +1085,13 @@
           <span class="tk-bubble-text">${escapeHtml(bText)}</span>
           <span class="tk-bubble-insert-icon">↵</span>
         `;
-        item.addEventListener('click', () => {
+        item.addEventListener('click', async () => {
           insertTextIntoChat(bText);
           if (activeContactId) {
+            const hdrs = await getApiHeaders();
             fetch(`${BACKEND_BASE}/api/approve`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: hdrs,
               body: JSON.stringify({
                 contact_id: activeContactId,
                 original_draft: activeOriginalDraft || bText,
@@ -1129,16 +1149,17 @@
       setTimeout(() => (copyBtn.textContent = 'COPY'), 1500);
     });
 
-    const doInsert = () => {
+    const doInsert = async () => {
       const finalMsg = draftTextarea.value.trim();
       if (!finalMsg) return;
 
       insertTextIntoChat(finalMsg);
 
       if (activeContactId) {
+        const hdrs = await getApiHeaders();
         fetch(`${BACKEND_BASE}/api/approve`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: hdrs,
           body: JSON.stringify({
             contact_id: activeContactId,
             original_draft: activeOriginalDraft || finalMsg,
@@ -1171,9 +1192,10 @@
     openCopilotModal(contactName, incomingText, true);
 
     try {
+      const hdrs = await getApiHeaders();
       const res = await fetch(`${BACKEND_BASE}/api/copilot/draft`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: hdrs,
         body: JSON.stringify({
           contact_name: contactName,
           incoming_message: incomingText || 'Hey!',
