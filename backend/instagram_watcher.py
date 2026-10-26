@@ -214,37 +214,59 @@ async def get_latest_incoming(page) -> list[str]:
     try:
         result = await page.evaluate("""
             () => {
-                const allDivs = Array.from(document.querySelectorAll('div[dir="auto"]'));
+                const main = document.querySelector('div[role="main"]') || document.querySelector('main') || document.body;
+                const allDivs = Array.from(main.querySelectorAll('div[dir="auto"]'));
                 let currentBlock = [];
 
                 for (const el of allDivs) {
+                    if (el.closest('header') || el.closest('nav') || el.closest('form') || el.closest('footer')) continue;
                     const text = el.innerText ? el.innerText.trim() : '';
-                    if (!text || text.length < 2 || text.length > 2000) continue;
+                    if (!text || text.length < 1 || text.length > 2000) continue;
                     const childDivs = el.querySelectorAll('div[dir="auto"]');
                     if (childDivs.length > 0) continue;
 
                     const rect = el.getBoundingClientRect();
                     if (rect.width < 10 || rect.height < 10) continue;
-                    if (rect.top < 0 || rect.bottom > window.innerHeight + 200) continue;
+                    if (rect.top < 70 || rect.bottom > window.innerHeight - 50) continue;
+                    if (window.innerWidth > 768 && rect.left < 320) continue;
 
-                    let parent = el.parentElement;
-                    let rowRect = null;
-                    while (parent) {
-                        const pRect = parent.getBoundingClientRect();
-                        if (pRect.width >= 250 && pRect.width > rect.width * 1.15) {
-                            rowRect = pRect;
-                            break;
-                        }
-                        parent = parent.parentElement;
+                    let isThem = false;
+                    let isYou = false;
+
+                    let curr = el;
+                    while (curr && curr !== main) {
+                        const align = window.getComputedStyle(curr).alignSelf;
+                        if (align === 'flex-end') { isYou = true; break; }
+                        if (align === 'flex-start') { isThem = true; break; }
+                        curr = curr.parentElement;
                     }
-                    if (!rowRect) rowRect = { left: 0, right: window.innerWidth };
 
-                    const leftDist = Math.abs(rect.left - rowRect.left);
-                    const rightDist = Math.abs(rowRect.right - rect.right);
+                    if (!isThem && !isYou) {
+                        let parent = el.parentElement;
+                        let rowRect = null;
+                        while (parent && parent !== main) {
+                            const pRect = parent.getBoundingClientRect();
+                            if (pRect.width >= 250 && pRect.width > rect.width * 1.15) {
+                                rowRect = pRect;
+                                break;
+                            }
+                            parent = parent.parentElement;
+                        }
+                        if (!rowRect) rowRect = main.getBoundingClientRect();
 
-                    if (leftDist < rightDist * 0.85) {
+                        const leftDist = Math.abs(rect.left - rowRect.left);
+                        const rightDist = Math.abs(rowRect.right - rect.right);
+
+                        if (leftDist < rightDist * 0.85) {
+                            isThem = true;
+                        } else if (rightDist < leftDist * 0.85) {
+                            isYou = true;
+                        }
+                    }
+
+                    if (isThem) {
                         currentBlock.push(text);
-                    } else if (rightDist < leftDist * 0.85) {
+                    } else if (isYou) {
                         currentBlock = [];
                     }
                 }
@@ -264,9 +286,13 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
     try:
         messages = await page.evaluate("""
             (limit) => {
+                const main = document.querySelector('div[role="main"]') || document.querySelector('main') || document.body;
                 let results = [];
-                const allDivs = Array.from(document.querySelectorAll('div[dir="auto"]'));
+
+                // --- Pass 1: Text Messages ---
+                const allDivs = Array.from(main.querySelectorAll('div[dir="auto"]'));
                 for (const el of allDivs) {
+                    if (el.closest('header') || el.closest('nav') || el.closest('form') || el.closest('footer')) continue;
                     const text = el.innerText ? el.innerText.trim() : '';
                     if (!text || text.length < 1 || text.length > 2000) continue;
                     
@@ -275,13 +301,15 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                     if (childDivs.length > 0 && childDivs[0].innerText?.trim() === text) continue;
 
                     const rect = el.getBoundingClientRect();
-                    if (rect.width < 10 || rect.height < 10 || rect.top < 0) continue;
+                    if (rect.width < 10 || rect.height < 10) continue;
+                    if (rect.top < 70 || rect.bottom > window.innerHeight - 50) continue;
+                    if (window.innerWidth > 768 && rect.left < 320) continue;
 
                     let role = null;
                     
                     // Fallback 1: CSS flex alignment
                     let curr = el;
-                    while (curr && curr !== document.body) {
+                    while (curr && curr !== main) {
                         const align = window.getComputedStyle(curr).alignSelf;
                         if (align === 'flex-end') { role = 'you'; break; }
                         if (align === 'flex-start') { role = 'them'; break; }
@@ -292,7 +320,7 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                     if (!role) {
                         let parent = el.parentElement;
                         let rowRect = null;
-                        while (parent) {
+                        while (parent && parent !== main) {
                             const pRect = parent.getBoundingClientRect();
                             if (pRect.width >= 250 && pRect.width > rect.width * 1.15) {
                                 rowRect = pRect;
@@ -300,26 +328,58 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                             }
                             parent = parent.parentElement;
                         }
-                        if (!rowRect) rowRect = { left: 0, right: window.innerWidth };
+                        if (!rowRect) rowRect = main.getBoundingClientRect();
                         const leftDist = Math.abs(rect.left - rowRect.left);
                         const rightDist = Math.abs(rowRect.right - rect.right);
                         if (leftDist < rightDist * 0.85) role = 'them';
                         else if (rightDist < leftDist * 0.85) role = 'you';
                         else role = 'them'; // default fallback
                     }
-                    results.push({role, content: text, y_pos: rect.top});
+                    results.push({role, content: text, y_pos: rect.top, is_media: false});
                 }
                 
                 // --- Pass 2: Media Elements ---
-                const mediaElements = Array.from(document.querySelectorAll('img, video'));
+                const mediaElements = Array.from(main.querySelectorAll('img, video, a[href*="/reel/"], a[href*="/p/"]'));
                 for (const el of mediaElements) {
+                    if (el.closest('header') || el.closest('nav') || el.closest('form') || el.closest('footer')) continue;
+
                     const rect = el.getBoundingClientRect();
-                    if (rect.width < 50 || rect.height < 50 || rect.top < 0 || rect.bottom > window.innerHeight + 500) continue;
-                    
-                    // Filter out header/nav and likely profile pics
-                    if (el.closest('header') || el.closest('nav') || el.closest('form')) continue;
+                    if (rect.width < 40 || rect.height < 40) continue;
+                    if (rect.top < 70 || rect.bottom > window.innerHeight - 50) continue;
+                    if (window.innerWidth > 768 && rect.left < 320) continue;
+
+                    const alt = (el.getAttribute('alt') || '').toLowerCase();
+                    const src = (el.getAttribute('src') || '').toLowerCase();
+                    const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+
+                    // Strictly reject any avatar or profile picture
+                    if (
+                        alt.includes('profile picture') || 
+                        alt.includes('profile photo') || 
+                        alt.includes('user-profile-picture') || 
+                        alt.includes('avatar') || 
+                        ariaLabel.includes('profile picture') ||
+                        ariaLabel.includes('profile photo') ||
+                        src.includes('/profiles/') || 
+                        src.includes('profile_pic') ||
+                        src.includes('s150x150') ||
+                        src.includes('s320x320')
+                    ) {
+                        continue;
+                    }
+
+                    // Reject circular avatar thumbnails
                     const style = window.getComputedStyle(el);
-                    if (style.borderRadius === '50%' && rect.width < 60) continue;
+                    if ((style.borderRadius === '50%' || parseInt(style.borderRadius) >= 25) && (rect.width <= 75 || rect.height <= 75)) {
+                        continue;
+                    }
+
+                    // Check if already tagged or inside a reel container
+                    const reelParent = el.closest('a[href*="/reel/"], a[href*="/p/"]');
+                    if (reelParent && reelParent !== el) {
+                        if (reelParent.hasAttribute('data-talking-reel-tagged')) continue;
+                        reelParent.setAttribute('data-talking-reel-tagged', 'true');
+                    }
 
                     if (!el.hasAttribute('data-talking-media-id')) {
                         el.setAttribute('data-talking-media-id', 'media_' + Math.random().toString(36).substr(2, 9));
@@ -327,23 +387,22 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                     const selector = `[data-talking-media-id="${el.getAttribute('data-talking-media-id')}"]`;
 
                     let mediaType = '[Sent a photo]';
-                    const reelParent = el.closest('a[href*="/reel/"], a[href*="/p/"]');
-                    if (reelParent) {
-                        const href = reelParent.href || '';
+                    if (reelParent || el.tagName.toLowerCase() === 'a') {
+                        const targetEl = reelParent || el;
+                        const href = targetEl.href || '';
                         const isReel = href.includes('/reel/');
-                        const alt = el.getAttribute('alt') || '';
-                        mediaType = `[Shared ${isReel ? 'Instagram Reel' : 'Post'}: ${href}${alt ? ' | ' + alt : ''}]`;
+                        mediaType = `[Shared ${isReel ? 'Instagram Reel' : 'Post'}: ${href}]`;
                     } else if (el.tagName.toLowerCase() === 'video') {
                         mediaType = '[Sent a reel/video]';
-                    } else if (el.src?.includes('giphy') || el.src?.includes('stickers')) {
+                    } else if (src.includes('giphy') || src.includes('stickers')) {
                         mediaType = '[Sent a GIF/sticker]';
-                    } else if (el.getAttribute('alt')) {
+                    } else if (alt && !alt.includes('photo') && !alt.includes('image')) {
                         mediaType = `[Sent a photo: ${el.getAttribute('alt')}]`;
                     }
                     
                     let role = null;
                     let curr = el;
-                    while (curr && curr !== document.body) {
+                    while (curr && curr !== main) {
                         const align = window.getComputedStyle(curr).alignSelf;
                         if (align === 'flex-end') { role = 'you'; break; }
                         if (align === 'flex-start') { role = 'them'; break; }
@@ -353,7 +412,7 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                     if (!role) {
                         let parent = el.parentElement;
                         let rowRect = null;
-                        while (parent) {
+                        while (parent && parent !== main) {
                             const pRect = parent.getBoundingClientRect();
                             if (pRect.width >= 250 && pRect.width > rect.width * 1.15) {
                                 rowRect = pRect;
@@ -361,7 +420,7 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                             }
                             parent = parent.parentElement;
                         }
-                        if (!rowRect) rowRect = { left: 0, right: window.innerWidth };
+                        if (!rowRect) rowRect = main.getBoundingClientRect();
                         const leftDist = Math.abs(rect.left - rowRect.left);
                         const rightDist = Math.abs(rowRect.right - rect.right);
                         if (leftDist < rightDist * 0.85) role = 'them';
@@ -385,6 +444,7 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                 let deduped = [];
                 for (let r of results) {
                     if (deduped.length > 0 && !r.is_media && deduped[deduped.length - 1].content === r.content) continue;
+                    if (deduped.length > 0 && r.is_media && deduped[deduped.length - 1].content === r.content && Math.abs(deduped[deduped.length - 1].y_pos - r.y_pos) < 25) continue;
                     deduped.push(r);
                 }
                 return deduped.slice(-limit);
