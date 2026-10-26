@@ -577,6 +577,10 @@ def sync_instagram_history(req: SyncHistoryRequest):
                 meta["is_media"] = True
                 if m.get("media_url"):
                     meta["media_url"] = m.get("media_url")
+                if m.get("is_reel"):
+                    meta["is_reel"] = True
+                if m.get("reel_url"):
+                    meta["reel_url"] = m.get("reel_url")
             new_messages.append(Message(
                 contact_id=req.contact_id,
                 role=role,

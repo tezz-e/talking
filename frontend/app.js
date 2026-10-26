@@ -684,33 +684,58 @@ function renderMessageBubbleContent(msg) {
   }
 
   // 2. Shared Instagram Reel / Post
-  const reelMatch = rawContent.match(/^\[Shared\s+(Instagram\s+Reel|Post):\s*(https?:\/\/[^\s\]]+)(?:\s*\|\s*([^\]]*))?\]/i);
-  if (reelMatch) {
-    const isReel = reelMatch[1].toLowerCase().includes('reel');
-    const reelUrl = reelMatch[2];
-    const caption = (reelMatch[3] || '').trim();
-    const badgeLabel = isReel ? 'INSTAGRAM REEL' : 'INSTAGRAM POST';
-    const previewImg = thumbnail ? `<img src="${escapeHtml(thumbnail)}" class="media-preview-img" referrerpolicy="no-referrer" alt="Preview" loading="lazy" />` : '';
-    const captionHtml = caption ? `<div class="media-caption">${escapeHtml(caption)}</div>` : '';
+  const isReel = rawContent.toLowerCase().includes('reel') || meta.is_reel || (thumbnail && thumbnail.includes('CLIPS'));
+  const reelMatch = rawContent.match(/^\[Shared\s+(?:Instagram\s+)?(Reel|Post)(?::\s*([^\]|]*))?(?:\s*\|\s*([^\]]*))?\]/i);
+
+  if (isReel || (reelMatch && reelMatch[1])) {
+    let reelUrl = meta.reel_url || '';
+    let caption = '';
+    if (reelMatch) {
+      const targetUrl = (reelMatch[2] || '').trim();
+      if (targetUrl.startsWith('http')) {
+        reelUrl = targetUrl;
+      }
+      caption = (reelMatch[3] || (!targetUrl.startsWith('http') ? targetUrl : '') || '').trim();
+    }
+    if (!caption && meta.description) {
+      caption = meta.description;
+    }
+
+    const cardId = 'reel_' + Math.random().toString(36).substr(2, 9);
+    const viewLink = reelUrl ? `
+      <a href="${escapeHtml(reelUrl)}" target="_blank" rel="noopener noreferrer" class="media-external-link" title="Open Reel on Instagram">
+        <span>Watch on IG</span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>` : '';
 
     return {
       html: `
-        <div class="media-bubble-card media-reel-card">
+        <div class="media-bubble-card media-reel-card" id="${cardId}" style="width: 210px; max-width: 210px;">
           <div class="media-card-header">
             <span class="media-badge media-badge-reel">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              ${badgeLabel}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+              REEL
             </span>
-            <a href="${escapeHtml(reelUrl)}" target="_blank" rel="noopener noreferrer" class="media-external-link" title="Open in Instagram">
-              <span>View</span>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-            </a>
+            ${viewLink}
           </div>
-          ${previewImg}
-          ${captionHtml}
+          <div class="media-reel-embed-viewport" style="position: relative; width: 100%; height: 270px; max-height: 270px; border-radius: 8px; overflow: hidden; background: #000;">
+            ${thumbnail ? `<img src="${escapeHtml(thumbnail)}" class="media-reel-poster" referrerpolicy="no-referrer" alt="Instagram Reel" loading="lazy" style="width: 100%; height: 100%; object-fit: cover; display: block;" />` : '<div class="media-reel-placeholder">INSTAGRAM REEL</div>'}
+            <div class="media-reel-gradient-overlay"></div>
+            ${reelUrl ? `
+              <a href="${escapeHtml(reelUrl)}" target="_blank" rel="noopener noreferrer" class="media-reel-play-btn" title="Watch Reel">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+              </a>
+            ` : `
+              <div class="media-reel-play-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+              </div>
+            `}
+          </div>
+          ${caption ? `<div class="media-caption">${escapeHtml(caption)}</div>` : ''}
         </div>`,
       isEmoji: false,
       isMedia: true,
+      isReel: true,
     };
   }
 
@@ -724,12 +749,12 @@ function renderMessageBubbleContent(msg) {
     if (!desc && meta.description) {
       desc = meta.description;
     }
-    const previewImg = thumbnail ? `<img src="${escapeHtml(thumbnail)}" class="media-preview-img" referrerpolicy="no-referrer" alt="Photo" loading="lazy" />` : '';
+    const previewImg = thumbnail ? `<img src="${escapeHtml(thumbnail)}" class="media-preview-img" referrerpolicy="no-referrer" alt="Photo" loading="lazy" style="width: 100%; max-width: 220px; max-height: 220px; object-fit: cover; border-radius: 6px; display: block;" />` : '';
     const captionHtml = desc ? `<div class="media-caption">${escapeHtml(desc)}</div>` : '';
 
     return {
       html: `
-        <div class="media-bubble-card media-photo-card">
+        <div class="media-bubble-card media-photo-card" style="width: 220px; max-width: 220px;">
           <div class="media-card-header">
             <span class="media-badge media-badge-photo">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>

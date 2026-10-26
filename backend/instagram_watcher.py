@@ -415,11 +415,39 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                         continue;
                     }
 
-                    // Check if already tagged or inside a reel container
-                    const reelParent = el.closest('a[href*="/reel/"], a[href*="/p/"]');
-                    if (reelParent && reelParent !== el) {
-                        if (reelParent.hasAttribute('data-talking-reel-tagged')) continue;
-                        reelParent.setAttribute('data-talking-reel-tagged', 'true');
+                    // Check if this is a reel / post link or media inside a reel / post card
+                    let reelLink = el.closest('a[href*="/reel/"], a[href*="/reels/"], a[href*="/p/"]');
+                    const rowBox = el.closest('div[role="row"], div[role="none"], div[style*="flex"], div[dir="auto"]') || el.parentElement;
+
+                    if (!reelLink && rowBox) {
+                        reelLink = rowBox.querySelector('a[href*="/reel/"], a[href*="/reels/"], a[href*="/p/"]');
+                    }
+
+                    if (!reelLink) {
+                        let p = el.parentElement;
+                        let depth = 0;
+                        while (p && p !== main && depth < 5) {
+                            const found = p.querySelector('a[href*="/reel/"], a[href*="/reels/"], a[href*="/p/"]');
+                            if (found) {
+                                reelLink = found;
+                                break;
+                            }
+                            p = p.parentElement;
+                            depth++;
+                        }
+                    }
+
+                    // Check if image URL or card text indicates a Reel
+                    const isClipsMedia = src.includes('clips') || src.includes('reel') || (src.includes('efg=') && (src.includes('CLIPS') || decodeURIComponent(src).includes('CLIPS')));
+                    const cardText = rowBox ? (rowBox.innerText || '') : '';
+                    const hasReelKeywords = cardText.includes('Watch on Instagram') || cardText.includes('Watch full reel') || cardText.includes('Reel by');
+                    const isReel = Boolean(reelLink || isClipsMedia || hasReelKeywords);
+
+                    // Prevent double-counting reel components (anchor + thumbnail)
+                    if (isReel) {
+                        const tagContainer = rowBox || reelLink || el;
+                        if (tagContainer.hasAttribute('data-talking-reel-tagged')) continue;
+                        tagContainer.setAttribute('data-talking-reel-tagged', 'true');
                     }
 
                     if (!el.hasAttribute('data-talking-media-id')) {
@@ -431,19 +459,22 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                     const isSticker = alt.includes('sticker') || ariaLabel.includes('sticker') || src.includes('sticker') || src.includes('stickers');
                     const isGif = alt.includes('gif') || ariaLabel.includes('gif') || src.includes('giphy');
 
-                    if (reelParent || el.tagName.toLowerCase() === 'a') {
-                        const targetEl = reelParent || el;
-                        const href = targetEl.href || '';
-                        const isReel = href.includes('/reel/');
-                        const cleanAlt = (rawAlt && !rawAlt.toLowerCase().includes('photo') && !rawAlt.toLowerCase().includes('image')) ? rawAlt : '';
-                        mediaType = `[Shared ${isReel ? 'Instagram Reel' : 'Post'}: ${href}${cleanAlt ? ' | ' + cleanAlt : ''}]`;
+                    const cleanAlt = (rawAlt && !rawAlt.toLowerCase().includes('photo') && !rawAlt.toLowerCase().includes('image')) ? rawAlt : '';
+
+                    if (isReel) {
+                        const href = reelLink ? reelLink.href : '';
+                        mediaType = href ? `[Shared Instagram Reel: ${href}${cleanAlt ? ' | ' + cleanAlt : ''}]` : `[Shared Instagram Reel${cleanAlt ? ': ' + cleanAlt : ''}]`;
+                    } else if (el.tagName.toLowerCase() === 'a' && el.href) {
+                        const href = el.href;
+                        const isPost = href.includes('/p/');
+                        mediaType = `[Shared ${isPost ? 'Post' : 'Link'}: ${href}]`;
                     } else if (el.tagName.toLowerCase() === 'video') {
                         mediaType = '[Sent a reel/video]';
                     } else if (isGif) {
                         mediaType = '[Sent a GIF]';
                     } else if (isSticker) {
-                        const cleanAlt = (rawAlt && !rawAlt.toLowerCase().includes('sticker')) ? rawAlt : '';
-                        mediaType = cleanAlt ? `[Sent a sticker: ${cleanAlt}]` : '[Sent a sticker]';
+                        const stickerAlt = (rawAlt && !rawAlt.toLowerCase().includes('sticker')) ? rawAlt : '';
+                        mediaType = stickerAlt ? `[Sent a sticker: ${stickerAlt}]` : '[Sent a sticker]';
                     } else if (alt && !alt.includes('photo') && !alt.includes('image')) {
                         mediaType = `[Sent a photo: ${el.getAttribute('alt')}]`;
                     }
@@ -452,7 +483,9 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                         role: role, 
                         content: mediaType, 
                         is_media: true, 
-                        media_url: el.src || (reelParent ? reelParent.href : ''),
+                        is_reel: isReel,
+                        reel_url: reelLink ? reelLink.href : '',
+                        media_url: el.src || (reelLink ? (reelLink.querySelector('img')?.src || '') : ''),
                         element_selector: selector,
                         y_pos: rect.top 
                     });

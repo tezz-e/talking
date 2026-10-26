@@ -658,17 +658,21 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: 2px;
 }
 
-/* Media Bubble Containers */
+/* Media Bubble Containers: Strict bounding boxes so they NEVER blow up */
 .message-bubble.bubble-has-media {
-  padding: 8px 10px;
+  padding: 8px 10px !important;
+  max-width: 236px !important;
+  width: fit-content !important;
+  box-sizing: border-box !important;
 }
 
 .media-bubble-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 170px;
-  max-width: 290px;
+  width: 216px;
+  max-width: 216px;
+  box-sizing: border-box;
 }
 
 .media-card-header {
@@ -733,9 +737,101 @@ input:focus, select:focus, textarea:focus {
   text-decoration: underline;
 }
 
+/* Specific Reel Embed Card: 9:16 vertical video proportions */
+.media-reel-card {
+  width: 210px;
+  max-width: 210px;
+}
+
+.media-reel-embed-viewport {
+  position: relative;
+  width: 100%;
+  height: 270px;
+  max-height: 270px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0a0a0c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hairline);
+}
+
+.media-reel-poster {
+  width: 100%;
+  height: 100%;
+  max-height: 270px;
+  object-fit: cover;
+  display: block;
+}
+
+.media-reel-gradient-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.45) 0%,
+    transparent 28%,
+    transparent 65%,
+    rgba(0, 0, 0, 0.65) 100%
+  );
+  pointer-events: none;
+}
+
+.media-reel-play-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(15, 14, 11, 0.68);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  transition: transform 140ms ease, background 140ms ease;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.media-reel-play-btn svg {
+  margin-left: 3px;
+}
+
+.media-reel-play-btn:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+  background: rgba(255, 79, 31, 0.9);
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+.media-reel-placeholder {
+  font-family: var(--font-machine);
+  font-size: 11px;
+  letter-spacing: var(--machine-tracking);
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  padding: 16px;
+}
+
+/* Regular Photo Card */
+.media-photo-card {
+  width: 216px;
+  max-width: 216px;
+}
+
 .media-preview-img {
   width: 100%;
-  max-height: 230px;
+  max-width: 216px;
+  height: auto;
+  max-height: 210px;
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid var(--hairline);
@@ -754,10 +850,11 @@ input:focus, select:focus, textarea:focus {
 
 .media-caption {
   font-family: var(--font-voice);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 12px;
+  line-height: 16px;
   opacity: 0.92;
   word-break: break-word;
+  padding-top: 2px;
 }
 
 .chat-inline-link {
