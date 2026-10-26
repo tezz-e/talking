@@ -35,25 +35,28 @@ app = FastAPI(title="Talking API")
 # Server-side API protection token (generated at startup, compared with secrets.compare_digest)
 SERVER_API_TOKEN = os.getenv("TALKING_API_TOKEN") or secrets.token_hex(32)
 
-ALLOWED_ORIGINS = [
+DEFAULT_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
 
-# Support additional configured origins or local test ports
-_extra_origins = os.getenv("ADDITIONAL_ALLOWED_ORIGINS", "")
-if _extra_origins:
-    for _orig in _extra_origins.split(","):
-        _orig = _orig.strip()
-        if _orig and _orig not in ALLOWED_ORIGINS:
-            ALLOWED_ORIGINS.append(_orig)
+def get_allowed_origins() -> list[str]:
+    """Returns the set of allowed CORS and local API origins.
+    Production defaults strictly to http://localhost:8000 and http://127.0.0.1:8000.
+    Additional origins can be configured via ADDITIONAL_ALLOWED_ORIGINS (e.g. test ports).
+    """
+    origins = list(DEFAULT_ALLOWED_ORIGINS)
+    extra = os.getenv("ADDITIONAL_ALLOWED_ORIGINS", "").strip()
+    if extra:
+        for orig in extra.split(","):
+            orig = orig.strip()
+            if orig and orig not in origins:
+                origins.append(orig)
+    return origins
 
-# Add local test runner ports (e.g. Playwright on 8199)
-for _port in ("8199", "8080"):
-    for _host in ("localhost", "127.0.0.1"):
-        _test_orig = f"http://{_host}:{_port}"
-        if _test_orig not in ALLOWED_ORIGINS:
-            ALLOWED_ORIGINS.append(_test_orig)
+ALLOWED_ORIGINS = get_allowed_origins()
+
+ALLOWED_HOSTS = {"localhost", "127.0.0.1", "testserver"}
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,19 +68,29 @@ app.add_middleware(
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    # 1. Reject requests whose Origin header is present and not in the allowed list
+    # 1. Host header validation (blocks DNS rebinding)
+    host_header = request.headers.get("host")
+    if host_header:
+        host_name = host_header.split(":")[0].strip().lower()
+        if host_name not in ALLOWED_HOSTS:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": f"Forbidden host: {host_header}"}
+            )
+
+    # 2. Reject requests whose Origin header is present and not in the allowed list
     origin = request.headers.get("origin")
-    if origin is not None and origin not in ALLOWED_ORIGINS:
+    if origin is not None and origin not in get_allowed_origins():
         return JSONResponse(
             status_code=403,
             content={"detail": f"Forbidden origin: {origin}"}
         )
 
-    # 2. Allow CORS preflight requests
+    # 3. Allow CORS preflight requests
     if request.method == "OPTIONS":
         return await call_next(request)
 
-    # 3. Require valid X-Talking-Token on all state-changing methods
+    # 4. Require valid X-Talking-Token on all state-changing methods
     if request.method in ("POST", "PUT", "PATCH", "DELETE"):
         token = request.headers.get("x-talking-token") or ""
         if not token or not secrets.compare_digest(token, SERVER_API_TOKEN):
@@ -91,7 +104,7 @@ async def security_middleware(request: Request, call_next):
 @app.get("/api/auth/token")
 def get_auth_token(request: Request):
     origin = request.headers.get("origin")
-    if origin is not None and origin not in ALLOWED_ORIGINS:
+    if origin is not None and origin not in get_allowed_origins():
         raise HTTPException(status_code=403, detail="Forbidden origin")
     return {"token": SERVER_API_TOKEN}
 

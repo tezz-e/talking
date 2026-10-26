@@ -5,6 +5,12 @@ Tests the full frontend UI dashboard, the in-page copilot DOM interactions,
 and multimodal Reel and Image detection in simulated Instagram Direct & WhatsApp Web.
 """
 
+import os
+
+TEST_PORT = 8199
+BASE_URL = f"http://127.0.0.1:{TEST_PORT}"
+os.environ["ADDITIONAL_ALLOWED_ORIGINS"] = f"http://127.0.0.1:{TEST_PORT},http://localhost:{TEST_PORT}"
+
 import threading
 import time
 import unittest

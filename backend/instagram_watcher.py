@@ -613,12 +613,12 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
                                         _state["status_text"] = "Auto-sending reply..."
                                         logger.warning(
                                             f"[AUTO-SEND DISPATCH] Dispatching unattended DM for contact_id={contact_id} "
-                                            f"target={their_ig_username} text={draft!r}"
+                                            f"target={their_ig_username} length={len(draft)}"
                                         )
                                         success = await send_on_page(page, draft)
                                         logger.warning(
                                             f"[AUTO-SEND RESULT] contact_id={contact_id} target={their_ig_username} "
-                                            f"success={success} length={len(draft)} text={draft!r}"
+                                            f"length={len(draft)} result={'success' if success else 'failed'}"
                                         )
                                         if success:
                                             _state["pending_reply"] = None

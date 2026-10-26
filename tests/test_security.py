@@ -165,5 +165,32 @@ class SecurityMiddlewareTests(unittest.TestCase):
         res = self.client.get("/api/auth/token", headers={"Origin": "http://evil.com"})
         self.assertEqual(res.status_code, 403)
 
+    # ── 6. Host Header & DNS Rebinding Protection ──
+    def test_foreign_host_header_rejected(self):
+        res = self.client.get("/api/watcher/status", headers={"Host": "attacker.com:8000"})
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("Forbidden host", res.json().get("detail", ""))
+
+    def test_valid_host_header_accepted(self):
+        res = self.client.get("/api/watcher/status", headers={"Host": "localhost:8000"})
+        self.assertEqual(res.status_code, 200)
+
+        res_ip = self.client.get("/api/watcher/status", headers={"Host": "127.0.0.1:8000"})
+        self.assertEqual(res_ip.status_code, 200)
+
+    # ── 7. Strict Production Allowed Origins ──
+    def test_default_production_allowed_origins(self):
+        from backend.main import get_allowed_origins
+        with patch.dict(os.environ, {"ADDITIONAL_ALLOWED_ORIGINS": ""}, clear=False):
+            origins = get_allowed_origins()
+            self.assertEqual(sorted(origins), sorted(["http://localhost:8000", "http://127.0.0.1:8000"]))
+
+    def test_additional_allowed_origins_env(self):
+        from backend.main import get_allowed_origins
+        with patch.dict(os.environ, {"ADDITIONAL_ALLOWED_ORIGINS": "http://localhost:9999,http://127.0.0.1:9999"}, clear=False):
+            origins = get_allowed_origins()
+            self.assertIn("http://localhost:9999", origins)
+            self.assertIn("http://127.0.0.1:9999", origins)
+
 if __name__ == "__main__":
     unittest.main()
