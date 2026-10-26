@@ -515,14 +515,35 @@ def describe_instagram_media(req: DescribeMediaRequest):
         image_bytes = base64.b64decode(raw_b64)
         description = llm.describe_image(image_bytes)
         formatted_content = f"{req.media_type}: {description}"
+        thumbnail_uri = f"data:image/jpeg;base64,{raw_b64}"
 
-        from .models import Message
-        db.add_message(Message(
-            contact_id=req.contact_id,
-            role="them",
-            content=formatted_content,
-            metadata={"is_media": True, "description": description}
-        ))
+        # Check for a recent un-described media message to update, preventing duplicates
+        recent_msgs = db.get_recent_messages(req.contact_id, n=10)
+        target_msg = None
+        for m in reversed(recent_msgs):
+            if (
+                m.content.strip() == req.media_type.strip()
+                or (m.metadata and m.metadata.get("is_media") and not m.metadata.get("description"))
+                or (req.media_type in m.content and not m.metadata.get("description"))
+            ):
+                target_msg = m
+                break
+
+        if target_msg:
+            updated_meta = dict(target_msg.metadata or {})
+            updated_meta["is_media"] = True
+            updated_meta["description"] = description
+            updated_meta["thumbnail"] = thumbnail_uri
+            db.update_message(target_msg.id, content=formatted_content, metadata=updated_meta)
+        else:
+            from .models import Message
+            db.add_message(Message(
+                contact_id=req.contact_id,
+                role="them",
+                content=formatted_content,
+                metadata={"is_media": True, "description": description, "thumbnail": thumbnail_uri}
+            ))
+
         return {
             "status": "ok",
             "description": description,
@@ -551,11 +572,16 @@ def sync_instagram_history(req: SyncHistoryRequest):
 
         sig = (role, content)
         if sig not in recent_signatures:
+            meta = {"source": "ig_sync"}
+            if m.get("is_media"):
+                meta["is_media"] = True
+                if m.get("media_url"):
+                    meta["media_url"] = m.get("media_url")
             new_messages.append(Message(
                 contact_id=req.contact_id,
                 role=role,
                 content=content,
-                metadata={"source": "ig_sync"}
+                metadata=meta
             ))
             recent_signatures.add(sig)
 

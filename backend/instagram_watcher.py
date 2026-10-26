@@ -284,7 +284,7 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
     Format: [{"role": "them"|"me", "content": "..."}]
     """
     try:
-        messages = await page.evaluate("""
+        messages = await page.evaluate(r"""
             (limit) => {
                 const main = document.querySelector('div[role="main"]') || document.querySelector('main') || document.body;
                 let results = [];
@@ -374,32 +374,6 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                         continue;
                     }
 
-                    // Check if already tagged or inside a reel container
-                    const reelParent = el.closest('a[href*="/reel/"], a[href*="/p/"]');
-                    if (reelParent && reelParent !== el) {
-                        if (reelParent.hasAttribute('data-talking-reel-tagged')) continue;
-                        reelParent.setAttribute('data-talking-reel-tagged', 'true');
-                    }
-
-                    if (!el.hasAttribute('data-talking-media-id')) {
-                        el.setAttribute('data-talking-media-id', 'media_' + Math.random().toString(36).substr(2, 9));
-                    }
-                    const selector = `[data-talking-media-id="${el.getAttribute('data-talking-media-id')}"]`;
-
-                    let mediaType = '[Sent a photo]';
-                    if (reelParent || el.tagName.toLowerCase() === 'a') {
-                        const targetEl = reelParent || el;
-                        const href = targetEl.href || '';
-                        const isReel = href.includes('/reel/');
-                        mediaType = `[Shared ${isReel ? 'Instagram Reel' : 'Post'}: ${href}]`;
-                    } else if (el.tagName.toLowerCase() === 'video') {
-                        mediaType = '[Sent a reel/video]';
-                    } else if (src.includes('giphy') || src.includes('stickers')) {
-                        mediaType = '[Sent a GIF/sticker]';
-                    } else if (alt && !alt.includes('photo') && !alt.includes('image')) {
-                        mediaType = `[Sent a photo: ${el.getAttribute('alt')}]`;
-                    }
-                    
                     let role = null;
                     let curr = el;
                     while (curr && curr !== main) {
@@ -427,11 +401,58 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
                         else if (rightDist < leftDist * 0.85) role = 'you';
                         else role = 'them';
                     }
+
+                    // Check if this img is an emoji character rendered by host
+                    const rawAlt = el.getAttribute('alt') || '';
+                    const isEmojiAlt = rawAlt && /^(\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Emoji_Modifier_Base}|\p{Emoji_Component}|\u200D|\uFE0F|\s)+$/u.test(rawAlt.trim());
+                    if (isEmojiAlt) {
+                        results.push({
+                            role: role,
+                            content: rawAlt.trim(),
+                            is_media: false,
+                            y_pos: rect.top
+                        });
+                        continue;
+                    }
+
+                    // Check if already tagged or inside a reel container
+                    const reelParent = el.closest('a[href*="/reel/"], a[href*="/p/"]');
+                    if (reelParent && reelParent !== el) {
+                        if (reelParent.hasAttribute('data-talking-reel-tagged')) continue;
+                        reelParent.setAttribute('data-talking-reel-tagged', 'true');
+                    }
+
+                    if (!el.hasAttribute('data-talking-media-id')) {
+                        el.setAttribute('data-talking-media-id', 'media_' + Math.random().toString(36).substr(2, 9));
+                    }
+                    const selector = `[data-talking-media-id="${el.getAttribute('data-talking-media-id')}"]`;
+
+                    let mediaType = '[Sent a photo]';
+                    const isSticker = alt.includes('sticker') || ariaLabel.includes('sticker') || src.includes('sticker') || src.includes('stickers');
+                    const isGif = alt.includes('gif') || ariaLabel.includes('gif') || src.includes('giphy');
+
+                    if (reelParent || el.tagName.toLowerCase() === 'a') {
+                        const targetEl = reelParent || el;
+                        const href = targetEl.href || '';
+                        const isReel = href.includes('/reel/');
+                        const cleanAlt = (rawAlt && !rawAlt.toLowerCase().includes('photo') && !rawAlt.toLowerCase().includes('image')) ? rawAlt : '';
+                        mediaType = `[Shared ${isReel ? 'Instagram Reel' : 'Post'}: ${href}${cleanAlt ? ' | ' + cleanAlt : ''}]`;
+                    } else if (el.tagName.toLowerCase() === 'video') {
+                        mediaType = '[Sent a reel/video]';
+                    } else if (isGif) {
+                        mediaType = '[Sent a GIF]';
+                    } else if (isSticker) {
+                        const cleanAlt = (rawAlt && !rawAlt.toLowerCase().includes('sticker')) ? rawAlt : '';
+                        mediaType = cleanAlt ? `[Sent a sticker: ${cleanAlt}]` : '[Sent a sticker]';
+                    } else if (alt && !alt.includes('photo') && !alt.includes('image')) {
+                        mediaType = `[Sent a photo: ${el.getAttribute('alt')}]`;
+                    }
                     
                     results.push({
                         role: role, 
                         content: mediaType, 
                         is_media: true, 
+                        media_url: el.src || (reelParent ? reelParent.href : ''),
                         element_selector: selector,
                         y_pos: rect.top 
                     });

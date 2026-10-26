@@ -646,6 +646,127 @@ input:focus, select:focus, textarea:focus {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* Jumbo Emojis (pure emoji messages) */
+.message-bubble.bubble-emoji-only {
+  background: transparent !important;
+  border: none !important;
+  padding: 4px 6px !important;
+  font-size: 38px !important;
+  line-height: 1.25 !important;
+  box-shadow: none !important;
+  user-select: all;
+  letter-spacing: 2px;
+}
+
+/* Media Bubble Containers */
+.message-bubble.bubble-has-media {
+  padding: 8px 10px;
+}
+
+.media-bubble-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 170px;
+  max-width: 290px;
+}
+
+.media-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.media-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-machine, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+
+.message-incoming .media-badge {
+  background: var(--bg-surface-elevated);
+  color: var(--text-main);
+  border: 1px solid var(--hairline);
+}
+
+.message-outgoing .media-badge {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--paper);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.media-badge svg {
+  flex-shrink: 0;
+}
+
+.media-external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-machine, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  opacity: 0.9;
+  transition: opacity 120ms ease;
+}
+
+.message-incoming .media-external-link {
+  color: var(--accent);
+}
+
+.message-outgoing .media-external-link {
+  color: var(--paper);
+}
+
+.media-external-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.media-preview-img {
+  width: 100%;
+  max-height: 230px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  display: block;
+  background: var(--bg-surface);
+}
+
+.media-sticker-img {
+  max-width: 140px;
+  max-height: 140px;
+  object-fit: contain;
+  display: block;
+  margin: 2px auto;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.12));
+}
+
+.media-caption {
+  font-family: var(--font-voice);
+  font-size: 13px;
+  line-height: 18px;
+  opacity: 0.92;
+  word-break: break-word;
+}
+
+.chat-inline-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  word-break: break-all;
+}
+
 .message-meta {
   font-family: var(--font-machine);
   font-size: 10px;

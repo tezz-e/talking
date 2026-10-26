@@ -326,6 +326,28 @@ class DatabaseManager:
             )
         return messages
 
+    def update_message(
+        self,
+        message_id: int,
+        content: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Update content and/or metadata of an existing message."""
+        clauses = []
+        params = []
+        if content is not None:
+            clauses.append("content = ?")
+            params.append(content)
+        if metadata is not None:
+            clauses.append("metadata = ?")
+            params.append(json.dumps(metadata))
+        if not clauses:
+            return False
+        params.append(message_id)
+        with self._connection() as conn:
+            cur = conn.execute(f"UPDATE messages SET {', '.join(clauses)} WHERE id = ?", params)
+            return cur.rowcount > 0
+
     def get_recent_user_messages(
         self,
         contact_id: Optional[str] = None,

@@ -632,6 +632,56 @@ Hope this helps!"""
         # Cleanup
         db.delete_contact(test_c.id)
 
+    def test_update_message_and_media_handling(self):
+        """Verifies database message updating and media/thumbnail metadata preservation."""
+        from fastapi.testclient import TestClient
+        from unittest.mock import patch
+        import base64
+        from backend.main import app, db, SERVER_API_TOKEN, llm
+        from backend.models import Contact, Message
+
+        contact = db.add_contact(Contact(name="Media Test Contact"))
+        client = TestClient(app, headers={"X-Talking-Token": SERVER_API_TOKEN})
+
+        # 1. Add initial un-described media placeholder message
+        msg = db.add_message(Message(
+            contact_id=contact.id,
+            role="them",
+            content="[Sent a photo]",
+            metadata={"is_media": True, "media_url": "https://example.com/photo.jpg"}
+        ))
+        self.assertGreater(msg.id, 0)
+
+        # 2. Test describe_media endpoint updates the placeholder in-place without duplicating
+        fake_b64 = base64.b64encode(b"fake_jpeg_bytes").decode("utf-8")
+        with patch.object(llm, "describe_image", return_value="A fluffy white cat lounging on a sofa"):
+            resp = client.post("/api/instagram/describe_media", json={
+                "contact_id": contact.id,
+                "media_type": "[Sent a photo]",
+                "image_base64": fake_b64,
+            })
+            self.assertEqual(resp.status_code, 200)
+
+        # Verify still only 1 message, updated with vision description and thumbnail URI
+        messages_after = db.get_recent_messages(contact.id, n=10)
+        self.assertEqual(len(messages_after), 1)
+        self.assertEqual(messages_after[0].id, msg.id)
+        self.assertIn("A fluffy white cat lounging on a sofa", messages_after[0].content)
+        self.assertTrue(messages_after[0].metadata.get("thumbnail").startswith("data:image/jpeg;base64,"))
+
+        # 3. Direct test of update_message
+        success = db.update_message(
+            msg.id,
+            content="[Sent a photo]: Updated description",
+            metadata={"is_media": True, "description": "Updated description"}
+        )
+        self.assertTrue(success)
+        re_fetched = db.get_recent_messages(contact.id, n=5)
+        self.assertEqual(re_fetched[0].content, "[Sent a photo]: Updated description")
+
+        # Cleanup
+        db.delete_contact(contact.id)
+
 
 if __name__ == "__main__":
     unittest.main()

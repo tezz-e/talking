@@ -655,6 +655,150 @@ function renderEmptyStateMarkup() {
     </div>`;
 }
 
+function isEmojiOnly(str) {
+  if (!str) return false;
+  const trimmed = str.trim();
+  const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Emoji_Modifier_Base}|\p{Emoji_Component}|\u200D|\uFE0F|\s)+$/u;
+  return emojiRegex.test(trimmed) && trimmed.length <= 15;
+}
+
+function linkifyUrls(escapedText) {
+  return escapedText.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" class="chat-inline-link">$1</a>'
+  );
+}
+
+function renderMessageBubbleContent(msg) {
+  const rawContent = (msg.content || msg.text || '').trim();
+  const meta = msg.metadata || {};
+  const thumbnail = meta.thumbnail || meta.media_url || '';
+
+  // 1. Emoji-Only Messages (Jumbo emoji presentation)
+  if (isEmojiOnly(rawContent)) {
+    return {
+      html: escapeHtml(rawContent),
+      isEmoji: true,
+      isMedia: false,
+    };
+  }
+
+  // 2. Shared Instagram Reel / Post
+  const reelMatch = rawContent.match(/^\[Shared\s+(Instagram\s+Reel|Post):\s*(https?:\/\/[^\s\]]+)(?:\s*\|\s*([^\]]*))?\]/i);
+  if (reelMatch) {
+    const isReel = reelMatch[1].toLowerCase().includes('reel');
+    const reelUrl = reelMatch[2];
+    const caption = (reelMatch[3] || '').trim();
+    const badgeLabel = isReel ? 'INSTAGRAM REEL' : 'INSTAGRAM POST';
+    const previewImg = thumbnail ? `<img src="${escapeHtml(thumbnail)}" class="media-preview-img" referrerpolicy="no-referrer" alt="Preview" loading="lazy" />` : '';
+    const captionHtml = caption ? `<div class="media-caption">${escapeHtml(caption)}</div>` : '';
+
+    return {
+      html: `
+        <div class="media-bubble-card media-reel-card">
+          <div class="media-card-header">
+            <span class="media-badge media-badge-reel">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              ${badgeLabel}
+            </span>
+            <a href="${escapeHtml(reelUrl)}" target="_blank" rel="noopener noreferrer" class="media-external-link" title="Open in Instagram">
+              <span>View</span>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+          </div>
+          ${previewImg}
+          ${captionHtml}
+        </div>`,
+      isEmoji: false,
+      isMedia: true,
+    };
+  }
+
+  // 3. Photos
+  const photoMatch = rawContent.match(/^\[(?:Sent a photo|Photo)(?::\s*([^\]]*))?\](?::\s*(.*))?/i);
+  if (photoMatch || (meta.is_media && (rawContent.includes('[Sent a photo') || rawContent.includes('[Photo')))) {
+    let desc = '';
+    if (photoMatch) {
+      desc = (photoMatch[2] || photoMatch[1] || '').trim();
+    }
+    if (!desc && meta.description) {
+      desc = meta.description;
+    }
+    const previewImg = thumbnail ? `<img src="${escapeHtml(thumbnail)}" class="media-preview-img" referrerpolicy="no-referrer" alt="Photo" loading="lazy" />` : '';
+    const captionHtml = desc ? `<div class="media-caption">${escapeHtml(desc)}</div>` : '';
+
+    return {
+      html: `
+        <div class="media-bubble-card media-photo-card">
+          <div class="media-card-header">
+            <span class="media-badge media-badge-photo">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              PHOTO
+            </span>
+          </div>
+          ${previewImg}
+          ${captionHtml}
+        </div>`,
+      isEmoji: false,
+      isMedia: true,
+    };
+  }
+
+  // 4. Stickers & GIFs
+  const stickerMatch = rawContent.match(/^\[(?:Sent a\s+)?(sticker|GIF|GIF\/sticker)(?::\s*([^\]]*))?\]/i);
+  if (stickerMatch) {
+    const kind = stickerMatch[1].toUpperCase().includes('GIF') ? 'GIF' : 'STICKER';
+    const desc = (stickerMatch[2] || '').trim();
+    const previewImg = thumbnail ? `<img src="${escapeHtml(thumbnail)}" class="media-sticker-img" referrerpolicy="no-referrer" alt="${kind}" loading="lazy" />` : '';
+    const captionHtml = desc ? `<div class="media-caption">${escapeHtml(desc)}</div>` : '';
+
+    return {
+      html: `
+        <div class="media-bubble-card media-sticker-card">
+          <div class="media-card-header">
+            <span class="media-badge media-badge-sticker">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+              ${kind}
+            </span>
+          </div>
+          ${previewImg}
+          ${captionHtml}
+        </div>`,
+      isEmoji: false,
+      isMedia: true,
+    };
+  }
+
+  // 5. Voice Notes
+  const voiceMatch = rawContent.match(/^\[(?:Voice Message|Voice Note|Audio)(?::\s*([^\]]*))?\]/i);
+  if (voiceMatch) {
+    const transcript = (voiceMatch[1] || '').trim();
+    const captionHtml = transcript ? `<div class="media-caption">"${escapeHtml(transcript)}"</div>` : '';
+
+    return {
+      html: `
+        <div class="media-bubble-card media-voice-card">
+          <div class="media-card-header">
+            <span class="media-badge media-badge-voice">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              VOICE NOTE
+            </span>
+          </div>
+          ${captionHtml}
+        </div>`,
+      isEmoji: false,
+      isMedia: true,
+    };
+  }
+
+  // 6. Generic Text with Safe Linkification
+  return {
+    html: linkifyUrls(escapeHtml(rawContent)),
+    isEmoji: false,
+    isMedia: false,
+  };
+}
+
 function createMessageElement(msg, { animate = false } = {}) {
   const row = document.createElement('div');
   const isOutgoing = msg.role === 'assistant' || msg.role === 'you' || msg.role === 'outgoing';
@@ -662,10 +806,16 @@ function createMessageElement(msg, { animate = false } = {}) {
 
   const wasEdited = isOutgoing && msg.was_edited;
   const senderName = isOutgoing ? 'YOU' : (state.currentContact?.name?.toUpperCase() || 'THEM');
+  const rendered = renderMessageBubbleContent(msg);
+
+  let bubbleClasses = 'message-bubble';
+  if (wasEdited) bubbleClasses += ' was-edited';
+  if (rendered.isEmoji) bubbleClasses += ' bubble-emoji-only';
+  if (rendered.isMedia) bubbleClasses += ' bubble-has-media';
 
   row.innerHTML = `
-    <div class="message-bubble${wasEdited ? ' was-edited' : ''}">
-      ${escapeHtml(msg.content || msg.text || '')}
+    <div class="${bubbleClasses}">
+      ${rendered.html}
     </div>
     <div class="message-meta">
       <span>${senderName}</span> · <span>${relativeTime(msg.timestamp)}</span>
