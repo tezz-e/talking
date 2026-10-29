@@ -869,8 +869,23 @@ function renderMessages(messages) {
   }
 
   const fragment = document.createDocumentFragment();
+  const deduped = [];
+  const seenIds = new Set();
 
   messages.forEach((msg) => {
+    if (msg.id && seenIds.has(msg.id)) return;
+    if (msg.id) seenIds.add(msg.id);
+
+    const contentTrim = (msg.content || msg.text || '').trim();
+    if (deduped.length > 0) {
+      const prev = deduped[deduped.length - 1];
+      const prevTrim = (prev.content || prev.text || '').trim();
+      const sameRole = prev.role === msg.role || (['you', 'assistant', 'outgoing'].includes(prev.role) && ['you', 'assistant', 'outgoing'].includes(msg.role));
+      if (sameRole && prevTrim === contentTrim) {
+        return; // Skip consecutive duplicate message
+      }
+    }
+    deduped.push(msg);
     const row = createMessageElement(msg, { animate: false });
     fragment.appendChild(row);
   });
@@ -888,6 +903,15 @@ function renderMessages(messages) {
  */
 function appendMessage(msg) {
   if (!state.messages) state.messages = [];
+  const contentTrim = (msg.content || msg.text || '').trim();
+  if (state.messages.length > 0) {
+    const last = state.messages[state.messages.length - 1];
+    const lastTrim = (last.content || last.text || '').trim();
+    const sameRole = last.role === msg.role || (['you', 'assistant', 'outgoing'].includes(last.role) && ['you', 'assistant', 'outgoing'].includes(msg.role));
+    if (sameRole && lastTrim === contentTrim) {
+      return null; // Skip duplicate append
+    }
+  }
   state.messages.push(msg);
 
   const emptyEl = dom.messageHistory.querySelector('.message-history-empty');

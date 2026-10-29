@@ -317,18 +317,37 @@ async def get_recent_history(page, limit: int = 15) -> list[dict]:
 
                 // --- Pass 1: Text Messages ---
                 const allDivs = Array.from(main.querySelectorAll('div[dir="auto"]'));
+                const headerEl = main.querySelector('header') || document.querySelector('header');
+                const headerBottom = headerEl ? headerEl.getBoundingClientRect().bottom : 50;
+
                 for (const el of allDivs) {
                     if (el.closest('header') || el.closest('nav') || el.closest('form') || el.closest('footer')) continue;
+                    // Skip if inside or part of a Reel / Post card or link
+                    if (
+                        el.closest('a[href*="/reel/"], a[href*="/reels/"], a[href*="/p/"]') || 
+                        el.closest('[data-talking-reel-tagged]')
+                    ) continue;
+                    
+                    const parentCard = el.closest('div[role="row"], div[role="none"], div[style*="flex"]') || el.parentElement;
+                    if (parentCard && parentCard.querySelector('a[href*="/reel/"], a[href*="/reels/"], a[href*="/p/"]')) continue;
+                    // Skip container divs that have child div[dir="auto"] elements (process only leaf text nodes)
+                    if (el.querySelector('div[dir="auto"]')) continue;
+
                     const text = el.innerText ? el.innerText.trim() : '';
                     if (!text || text.length < 1 || text.length > 2000) continue;
-                    
-                    // Only skip if the direct child has the exact same text (to prevent double counting nested divs)
-                    const childDivs = el.querySelectorAll('div[dir="auto"]');
-                    if (childDivs.length > 0 && childDivs[0].innerText?.trim() === text) continue;
+
+                    // Skip delivery status receipts
+                    if (/^(seen(\s+\d+.*|\s+just\s+now)?|sent|delivered)$/i.test(text)) continue;
+
+                    // Skip timestamp headers (e.g. 1:20 AM, Yesterday 4:30 PM, Today, etc.)
+                    if (/^(\d{1,2}:\d{2}\s*(?:am|pm)?|(yesterday|today|sunday|monday|tuesday|wednesday|thursday|friday|saturday)(\s+\d{1,2}:\d{2}\s*(?:am|pm)?)?|[a-z]{3}\s+\d{1,2}(,\s+\d{4})?(\s+\d{1,2}:\d{2}\s*(?:am|pm)?)?)$/i.test(text)) continue;
+
+                    // Skip active indicators
+                    if (/^active\s+.*$/i.test(text)) continue;
 
                     const rect = el.getBoundingClientRect();
                     if (rect.width < 10 || rect.height < 10) continue;
-                    if (rect.top < 70 || rect.bottom > window.innerHeight - 50) continue;
+                    if (rect.bottom <= headerBottom || rect.top > window.innerHeight - 50) continue;
                     if (window.innerWidth > 768 && rect.left < 320) continue;
 
                     let role = null;

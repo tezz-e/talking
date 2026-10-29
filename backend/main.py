@@ -218,13 +218,27 @@ def handle_message(req: GenerateRequest):
         contact = db.get_contact(req.contact_id)
 
     from .models import Message
-    # Save the incoming message
-    db.add_message(Message(
-        contact_id=req.contact_id,
-        role='them',
-        content=req.incoming_message,
-        metadata={"mood": req.mood.value if req.mood else "default"}
-    ))
+    # Save the incoming message only if not already saved by sync_history
+    content_clean = req.incoming_message.strip()
+    if content_clean:
+        recent_db = db.get_recent_messages(req.contact_id, n=6)
+        already_saved = any(
+            m.role == 'them' and m.content.strip() == content_clean
+            for m in recent_db
+        )
+        if not already_saved and '\n' in content_clean:
+            lines = [l.strip() for l in content_clean.splitlines() if l.strip()]
+            recent_them = [m.content.strip() for m in recent_db if m.role == 'them'][:len(lines)]
+            if set(lines).issubset(set(recent_them)):
+                already_saved = True
+
+        if not already_saved:
+            db.add_message(Message(
+                contact_id=req.contact_id,
+                role='them',
+                content=req.incoming_message,
+                metadata={"mood": req.mood.value if req.mood else "default"}
+            ))
 
     direct_reply = context_assembler.get_learned_callback_reply(
         req.contact_id,
@@ -561,6 +575,15 @@ def sync_instagram_history(req: SyncHistoryRequest):
     from .models import Message
     recent_db_msgs = db.get_recent_messages(req.contact_id, n=30)
     recent_signatures = {(m.role, m.content.strip()) for m in recent_db_msgs}
+    for m in recent_db_msgs:
+        if '\n\n' in m.content:
+            for b in m.content.split('\n\n'):
+                if b.strip():
+                    recent_signatures.add((m.role, b.strip()))
+        elif '\n' in m.content:
+            for b in m.content.split('\n'):
+                if b.strip():
+                    recent_signatures.add((m.role, b.strip()))
 
     new_messages = []
     for m in req.messages:

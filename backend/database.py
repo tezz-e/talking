@@ -278,8 +278,30 @@ class DatabaseManager:
     # ══════════════════════════════════════════════════════════════════════
 
     def add_message(self, message: Message) -> Message:
-        """Insert a message and return it with its assigned ID."""
+        """Insert a message and return it with its assigned ID. Skips immediate duplicate insertions."""
         with self._connection() as conn:
+            # Safety check: if an identical message exists for this contact within 15 seconds, return existing
+            cursor = conn.execute(
+                """
+                SELECT id, timestamp FROM messages
+                WHERE contact_id = ? AND role = ? AND content = ?
+                ORDER BY id DESC LIMIT 1
+                """,
+                (message.contact_id, message.role, message.content.strip())
+            )
+            existing = cursor.fetchone()
+            if existing:
+                try:
+                    from datetime import datetime
+                    ts_val = existing["timestamp"] if hasattr(existing, "keys") else existing[1]
+                    prev_time = datetime.fromisoformat(str(ts_val).replace(" ", "T"))
+                    diff = abs((message.timestamp - prev_time).total_seconds())
+                    if diff < 15.0:
+                        message.id = existing["id"] if hasattr(existing, "keys") else existing[0]
+                        return message
+                except Exception:
+                    pass
+
             cursor = conn.execute(
                 """
                 INSERT INTO messages
@@ -304,6 +326,22 @@ class DatabaseManager:
         if not messages:
             return []
         with self._connection() as conn:
+            filtered_messages = []
+            for m in messages:
+                cur = conn.execute(
+                    """
+                    SELECT id FROM messages 
+                    WHERE contact_id = ? AND role = ? AND content = ?
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (m.contact_id, m.role, m.content.strip())
+                )
+                if not cur.fetchone():
+                    filtered_messages.append(m)
+
+            if not filtered_messages:
+                return []
+
             params = [
                 (
                     m.contact_id,
@@ -314,7 +352,7 @@ class DatabaseManager:
                     m.timestamp.isoformat(sep=" "),
                     json.dumps(m.metadata or {}),
                 )
-                for m in messages
+                for m in filtered_messages
             ]
             conn.executemany(
                 """
@@ -324,7 +362,7 @@ class DatabaseManager:
                 """,
                 params,
             )
-        return messages
+        return filtered_messages
 
     def update_message(
         self,
