@@ -257,6 +257,13 @@ const api = {
       method: 'POST',
       body: JSON.stringify({ text })
     });
+  },
+
+  setWatcherAutoSend(enabled) {
+    return this._fetch('/api/watcher/auto_send', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: Boolean(enabled) })
+    });
   }
 };
 
@@ -2188,7 +2195,7 @@ function bindEvents() {
     dom.watcherLaunchBtn.addEventListener('click', toggleWatcher);
   }
   if (dom.watcherFullAutoBtn) {
-    dom.watcherFullAutoBtn.addEventListener('click', () => {
+    dom.watcherFullAutoBtn.addEventListener('click', async () => {
       const willEnable = !state.watcherFullAuto;
       if (willEnable && !state.autoSendConfirmedThisSession) {
         const confirmed = window.confirm(
@@ -2206,6 +2213,19 @@ function bindEvents() {
       } else {
         dom.watcherFullAutoBtn.textContent = state.watcherFullAuto ? 'AUTO-SEND [ON]' : 'AUTO-SEND [OFF]';
       }
+
+      if (state.watcherRunning) {
+        try {
+          const res = await api.setWatcherAutoSend(state.watcherFullAuto);
+          if (res?.dispatched_pending) {
+            showToast('PENDING DRAFT AUTO-DISPATCHED TO INSTAGRAM', 'success');
+          }
+        } catch (err) {
+          console.error('Failed to sync auto-send state:', err);
+          showToast(`AUTO-SEND SYNC ERROR: ${err.message}`, 'error');
+        }
+      }
+
       showToast(state.watcherFullAuto ? 'FULL AUTO ENGAGED (AUTO-DISPATCH DMs)' : 'AUTO-SEND DISABLED', state.watcherFullAuto ? 'warning' : 'info');
     });
   }

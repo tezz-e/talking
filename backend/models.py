@@ -177,6 +177,11 @@ class WatcherStartRequest(BaseModel):
     confirm_full_auto: Optional[bool] = Field(default=False, description="Explicit confirmation required to engage full_auto")
 
 
+class WatcherAutoSendRequest(BaseModel):
+    """Request to dynamically toggle auto-send on running watcher."""
+    enabled: bool = Field(..., description="Enable or disable auto-send")
+
+
 class GenerateResponse(BaseModel):
     """AI-generated draft reply."""
     draft: str = Field(..., description="The generated reply text")

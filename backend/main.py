@@ -17,7 +17,7 @@ from .models import (
     ContactCreate, ContactUpdate, GenerateRequest, GenerateResponse,
     ApproveRequest, IngestRequest, SteerRequest, SteerResponse, DraftVariant,
     Fact, FactCreate, CopilotDraftRequest, CopilotDraftResponse,
-    DescribeMediaRequest, SyncHistoryRequest, WatcherStartRequest, UnsendRequest
+    DescribeMediaRequest, SyncHistoryRequest, WatcherStartRequest, WatcherAutoSendRequest, UnsendRequest
 )
 from .database import DatabaseManager
 from .memory import MemoryStore
@@ -666,6 +666,24 @@ def stop_instagram_watcher():
     from .instagram_watcher import stop_watcher, get_state
     stop_watcher()
     return {"status": "stopping", "state": get_state()}
+
+@app.post("/api/watcher/auto_send")
+async def toggle_watcher_auto_send(req: WatcherAutoSendRequest):
+    if req.enabled:
+        allow_full_auto = os.getenv("ALLOW_FULL_AUTO", "0").strip()
+        if allow_full_auto != "1":
+            raise HTTPException(
+                status_code=403,
+                detail="Full auto-send is disabled server-side. Set ALLOW_FULL_AUTO=1 to enable."
+            )
+    from .instagram_watcher import set_full_auto, get_state
+    res = await set_full_auto(req.enabled)
+    return {
+        "status": "ok",
+        "full_auto": req.enabled,
+        "dispatched_pending": res.get("dispatched_pending", False),
+        "state": get_state()
+    }
 
 @app.get("/api/watcher/status")
 def get_instagram_watcher_status():

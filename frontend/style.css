@@ -1436,7 +1436,9 @@ input:focus, select:focus, textarea:focus {
   outline-offset: 1px;
 }
 
-/* Visually Hidden Native File Input */
+/* Visually Hidden Utility for Screen Readers & Native File Inputs */
+.visually-hidden,
+.sr-only,
 #imageUpload.visually-hidden {
   position: absolute !important;
   width: 1px !important;

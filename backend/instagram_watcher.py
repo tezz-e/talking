@@ -60,6 +60,7 @@ _state = {
     "running": False,
     "contact_id": None,
     "ig_username": None,
+    "full_auto": False,
     "last_message": None,
     "last_sent": None,
     "pending_reply": None,
@@ -874,7 +875,8 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
                                     draft = resp.json().get("draft", "")
                                     _state["pending_reply"] = draft
 
-                                    if full_auto:
+                                    is_full_auto = bool(_state.get("full_auto", full_auto))
+                                    if is_full_auto:
                                         _state["status_text"] = "Auto-sending reply..."
                                         logger.warning(
                                             f"[AUTO-SEND DISPATCH] Dispatching unattended DM for contact_id={contact_id} "
@@ -889,6 +891,19 @@ async def _watch_loop(contact_id: str, their_ig_username: str, mood: str, full_a
                                             _state["pending_reply"] = None
                                             _state["last_sent"] = draft
                                             _state["status_text"] = "Watching conversation"
+                                            try:
+                                                async with httpx.AsyncClient(timeout=10) as client:
+                                                    await client.post(
+                                                        f"{BACKEND_URL}/api/approve",
+                                                        json={
+                                                            "contact_id": contact_id,
+                                                            "original_draft": draft,
+                                                            "approved_draft": draft,
+                                                        },
+                                                        headers=_auth_headers(),
+                                                    )
+                                            except Exception as save_err:
+                                                logger.warning(f"Failed to record auto-sent exchange: {save_err}")
                                         else:
                                             _state["status_text"] = "Auto-send failed. Retrying..."
                                             _state["pending_reply"] = None
@@ -956,6 +971,7 @@ def start_watcher(contact_id: str, their_ig_username: str, mood: str = "default"
         "running": True,
         "contact_id": contact_id,
         "ig_username": their_ig_username,
+        "full_auto": bool(full_auto),
         "last_message": None,
         "last_sent": None,
         "pending_reply": None,
@@ -978,3 +994,15 @@ def start_watcher(contact_id: str, their_ig_username: str, mood: str = "default"
 
     threading.Thread(target=_thread, daemon=True, name="ig_watcher").start()
     logger.info(f"Watcher started for @{their_ig_username} (contact {contact_id})")
+
+
+async def set_full_auto(enabled: bool) -> dict:
+    """Dynamically toggle full_auto mode on the running watcher session."""
+    _state["full_auto"] = bool(enabled)
+    logger.warning(f"[AUTO-SEND TOGGLE] Watcher full_auto dynamically set to {enabled}")
+    dispatched = False
+    if enabled and _state.get("pending_reply"):
+        pending = _state["pending_reply"]
+        logger.info(f"[AUTO-SEND DISPATCH] Dispatching pending draft immediately: {pending[:60]}")
+        dispatched = await send_approved_reply(pending)
+    return {"full_auto": _state["full_auto"], "dispatched_pending": dispatched}
