@@ -220,6 +220,9 @@ class ContextAssembler:
         if not left_norm or not right_norm:
             return 0.0
 
+        if left_norm == right_norm:
+            return 1.0
+
         left_words = left_norm.split()
         right_words = right_norm.split()
         if len(right_words) < 3:
